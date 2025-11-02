@@ -106,7 +106,7 @@ type TestController struct {
 	capturer *vision.Capturer
 	store    *storage.ObservationStore
 	net      *model.ChessNet
-	trainer  *training.AdvancedTrainer
+	trainer  *training.Trainer
 	engine   *decision.DecisionEngine
 
 	// Metrics
@@ -227,7 +227,7 @@ func (tc *TestController) Initialize() error {
 		Epochs:          10,
 		ValidationSplit: 0.2,
 	}
-	trainer, err := training.NewAdvancedTrainer(net, store, trainerConfig)
+	trainer, err := training.NewTrainer(net, store, trainerConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create trainer: %w", err)
 	}
