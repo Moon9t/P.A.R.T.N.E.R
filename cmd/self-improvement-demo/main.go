@@ -15,15 +15,15 @@ import (
 func makeRandomMove() training.Move {
 	files := "abcdefgh"
 	ranks := "12345678"
-	
+
 	fromFile := files[rand.Intn(8)]
 	fromRank := ranks[rand.Intn(8)]
 	toFile := files[rand.Intn(8)]
 	toRank := ranks[rand.Intn(8)]
-	
+
 	notation := fmt.Sprintf("%c%c%c%c", fromFile, fromRank, toFile, toRank)
 	index, _ := model.EncodeMove(notation)
-	
+
 	return training.Move{
 		Index:      index,
 		Notation:   notation,

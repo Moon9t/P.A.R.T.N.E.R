@@ -32,7 +32,7 @@ func main() {
 	// Load vision configuration
 	var config *vision.Config
 	var err error
-	
+
 	if _, statErr := os.Stat(*configPath); os.IsNotExist(statErr) {
 		log.Printf("Config file not found, using defaults: %s", *configPath)
 		config = vision.DefaultConfig()
@@ -128,7 +128,7 @@ func analyzeVideo(videoPath string, config *vision.Config, cnn *model.ChessCNN, 
 		log.Fatalf("Failed to get video info: %v", err)
 	}
 
-	fmt.Printf("Video: %dx%d @ %.1f FPS, %d frames\n", 
+	fmt.Printf("Video: %dx%d @ %.1f FPS, %d frames\n",
 		info.Width, info.Height, info.FPS, info.FrameCount)
 
 	// Create pipeline
@@ -170,7 +170,7 @@ func analyzeVideo(videoPath string, config *vision.Config, cnn *model.ChessCNN, 
 			// Only analyze when board changes
 			if len(tensorData.Changes) > 0 {
 				positionCount++
-				
+
 				// Throttle predictions (max 1 per second)
 				if time.Since(lastPredictionTime) < time.Second {
 					continue
@@ -249,7 +249,7 @@ func analyzeLive(config *vision.Config, cnn *model.ChessCNN, topK int, verbose b
 			// Only analyze when board changes
 			if len(tensorData.Changes) > 0 {
 				positionCount++
-				
+
 				// Throttle predictions (max 1 per 2 seconds for live mode)
 				if time.Since(lastPredictionTime) < 2*time.Second {
 					continue
@@ -282,7 +282,7 @@ func analyzeLive(config *vision.Config, cnn *model.ChessCNN, topK int, verbose b
 				// Display results
 				fmt.Printf("\n✨ Top %d Move Suggestions:\n", len(predictions))
 				for i, pred := range predictions {
-					fmt.Printf("  %d. %-6s (%.1f%% confidence)\n", 
+					fmt.Printf("  %d. %-6s (%.1f%% confidence)\n",
 						i+1, pred.Move, pred.Confidence*100)
 				}
 				fmt.Println()
@@ -313,21 +313,101 @@ type MovePrediction struct {
 }
 
 func predictMoves(cnn *model.ChessCNN, tensor [12][8][8]float32, topK int) ([]MovePrediction, error) {
-	// Get model predictions (model.Predict already returns top K sorted)
-	predictions, err := cnn.Predict(tensor, topK)
+	// Extract chess-specific features
+	features := model.ExtractChessFeatures(tensor)
+
+	// Get more predictions than needed for filtering
+	predictions, err := cnn.Predict(tensor, topK*3)
 	if err != nil {
 		return nil, fmt.Errorf("model prediction failed: %w", err)
 	}
 
-	// Convert model.MovePrediction to our local MovePrediction format
-	result := make([]MovePrediction, len(predictions))
+	// Convert to model.MovePrediction format for filtering
+	modelPreds := make([]model.MovePrediction, len(predictions))
 	for i, pred := range predictions {
-		moveStr := fmt.Sprintf("%s%s", 
-			indexToSquare(pred.FromSquare), 
-			indexToSquare(pred.ToSquare))
+		modelPreds[i] = pred
+	}
+
+	// Filter out illegal moves
+	legalPreds := model.FilterIllegalMoves(modelPreds, tensor)
+
+	// Take top K after filtering
+	if len(legalPreds) > topK {
+		legalPreds = legalPreds[:topK]
+	}
+
+	// Convert to our local format with enhanced notation
+	result := make([]MovePrediction, len(legalPreds))
+	for i, pred := range legalPreds {
+		// Determine piece type
+		fromRow, fromCol := pred.FromSquare/8, pred.FromSquare%8
+		toRow, toCol := pred.ToSquare/8, pred.ToSquare%8
+
+		pieceType := ""
+		isCapture := false
+
+		// Find piece at source
+		for ch := 0; ch < 12; ch++ {
+			if tensor[ch][fromRow][fromCol] > 0 {
+				switch ch % 6 {
+				case 0:
+					pieceType = "" // Pawn
+				case 1:
+					pieceType = "N" // Knight
+				case 2:
+					pieceType = "B" // Bishop
+				case 3:
+					pieceType = "R" // Rook
+				case 4:
+					pieceType = "Q" // Queen
+				case 5:
+					pieceType = "K" // King
+				}
+				break
+			}
+		}
+
+		// Check if capture
+		for ch := 0; ch < 12; ch++ {
+			if tensor[ch][toRow][toCol] > 0 {
+				isCapture = true
+				break
+			}
+		}
+
+		// Build move notation
+		moveStr := pieceType
+		if isCapture && pieceType == "" {
+			// Pawn capture - include file
+			moveStr = string(rune('a' + fromCol))
+		}
+		if isCapture {
+			moveStr += "x"
+		}
+		moveStr += indexToSquare(pred.ToSquare)
+
+		// Add context based on features
+		context := ""
+
+		if features.MaterialBalance > 0.3 {
+			context = " [+material]"
+		} else if features.MaterialBalance < -0.3 {
+			context = " [-material]"
+		}
+
+		if features.GamePhase > 0.7 {
+			context += " [endgame]"
+		} else if features.GamePhase < 0.3 {
+			context += " [opening]"
+		}
+
+		// Check if move affects center
+		if (toRow == 3 || toRow == 4) && (toCol == 3 || toCol == 4) {
+			context += " [center]"
+		}
 
 		result[i] = MovePrediction{
-			Move:       moveStr,
+			Move:       moveStr + context,
 			Confidence: pred.Probability,
 			FromSquare: pred.FromSquare,
 			ToSquare:   pred.ToSquare,

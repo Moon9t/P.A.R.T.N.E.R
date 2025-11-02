@@ -145,8 +145,8 @@ func DefaultTrainingConfig() *TrainingConfig {
 	}
 }
 
-// TrainingMetrics tracks training metrics
-type TrainingMetrics struct {
+// BasicTrainingMetrics tracks basic training metrics (old version)
+type BasicTrainingMetrics struct {
 	Epoch       int
 	Loss        float64
 	Accuracy    float64
@@ -154,7 +154,7 @@ type TrainingMetrics struct {
 }
 
 // MetricsCallback is called after each epoch
-type MetricsCallback func(metrics *TrainingMetrics)
+type MetricsCallback func(metrics *BasicTrainingMetrics)
 
 // Train performs full training with the given data
 func Train(net *model.ChessNet, inputs [][]float64, targets []int, config *TrainingConfig, callback MetricsCallback) error {
@@ -196,10 +196,10 @@ func Train(net *model.ChessNet, inputs [][]float64, targets []int, config *Train
 		}
 
 		if callback != nil {
-			metrics := &TrainingMetrics{
+			metrics := &BasicTrainingMetrics{
 				Epoch:       epoch + 1,
-				Loss:        avgLoss,
-				SamplesSeen: len(inputs),
+				Loss:        epochLoss / float64(batchCount),
+				SamplesSeen: batchCount * config.BatchSize,
 			}
 			callback(metrics)
 		}

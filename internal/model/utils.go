@@ -252,3 +252,328 @@ func (st *StatTracker) GetStatistics() ModelStatistics {
 func (st *StatTracker) Reset() {
 	st.stats = ModelStatistics{}
 }
+
+// ChessFeatures contains extracted chess-specific features
+type ChessFeatures struct {
+	// Material counts (normalized 0-1)
+	WhitePawns   float32
+	WhiteKnights float32
+	WhiteBishops float32
+	WhiteRooks   float32
+	WhiteQueens  float32
+	BlackPawns   float32
+	BlackKnights float32
+	BlackBishops float32
+	BlackRooks   float32
+	BlackQueens  float32
+
+	// Derived features
+	MaterialBalance      float32 // Positive = white advantage
+	WhiteKingSafety      float32 // 0 = safe, 1 = exposed
+	BlackKingSafety      float32
+	WhitePawnAdvancement float32
+	BlackPawnAdvancement float32
+	WhiteCenterControl   float32
+	BlackCenterControl   float32
+	WhiteMobility        float32
+	BlackMobility        float32
+	GamePhase            float32 // 0 = opening, 1 = endgame
+}
+
+// ExtractChessFeatures extracts chess-specific features from board tensor
+func ExtractChessFeatures(tensor [12][8][8]float32) ChessFeatures {
+	var features ChessFeatures
+
+	// Count pieces
+	var whitePawns, blackPawns float32
+	var whiteKnights, blackKnights float32
+	var whiteBishops, blackBishops float32
+	var whiteRooks, blackRooks float32
+	var whiteQueens, blackQueens float32
+	var whiteKingX, whiteKingY int = -1, -1
+	var blackKingX, blackKingY int = -1, -1
+
+	for r := 0; r < 8; r++ {
+		for c := 0; c < 8; c++ {
+			// White pieces (channels 0-5)
+			if tensor[0][r][c] > 0 {
+				whitePawns++
+			}
+			if tensor[1][r][c] > 0 {
+				whiteKnights++
+			}
+			if tensor[2][r][c] > 0 {
+				whiteBishops++
+			}
+			if tensor[3][r][c] > 0 {
+				whiteRooks++
+			}
+			if tensor[4][r][c] > 0 {
+				whiteQueens++
+			}
+			if tensor[5][r][c] > 0 {
+				whiteKingX, whiteKingY = c, r
+			}
+
+			// Black pieces (channels 6-11)
+			if tensor[6][r][c] > 0 {
+				blackPawns++
+			}
+			if tensor[7][r][c] > 0 {
+				blackKnights++
+			}
+			if tensor[8][r][c] > 0 {
+				blackBishops++
+			}
+			if tensor[9][r][c] > 0 {
+				blackRooks++
+			}
+			if tensor[10][r][c] > 0 {
+				blackQueens++
+			}
+			if tensor[11][r][c] > 0 {
+				blackKingX, blackKingY = c, r
+			}
+		}
+	}
+
+	// Normalize piece counts
+	features.WhitePawns = whitePawns / 8.0
+	features.WhiteKnights = whiteKnights / 2.0
+	features.WhiteBishops = whiteBishops / 2.0
+	features.WhiteRooks = whiteRooks / 2.0
+	features.WhiteQueens = whiteQueens
+	features.BlackPawns = blackPawns / 8.0
+	features.BlackKnights = blackKnights / 2.0
+	features.BlackBishops = blackBishops / 2.0
+	features.BlackRooks = blackRooks / 2.0
+	features.BlackQueens = blackQueens
+
+	// Calculate material balance (standard piece values)
+	whiteMaterial := whitePawns + whiteKnights*3 + whiteBishops*3 + whiteRooks*5 + whiteQueens*9
+	blackMaterial := blackPawns + blackKnights*3 + blackBishops*3 + blackRooks*5 + blackQueens*9
+	totalMaterial := whiteMaterial + blackMaterial
+
+	if totalMaterial > 0 {
+		features.MaterialBalance = (whiteMaterial - blackMaterial) / 39.0 // Normalize by starting material
+	}
+
+	// King safety (distance from center - risky in middlegame, ok in endgame)
+	if whiteKingX >= 0 {
+		centerDist := float32(absInt(whiteKingX-3) + absInt(whiteKingY-3))
+		features.WhiteKingSafety = centerDist / 6.0 // Max distance from center
+	}
+	if blackKingX >= 0 {
+		centerDist := float32(absInt(blackKingX-3) + absInt(blackKingY-3))
+		features.BlackKingSafety = centerDist / 6.0
+	}
+
+	// Pawn advancement (higher rank = more advanced)
+	var whiteAdvancement, blackAdvancement float32
+	for c := 0; c < 8; c++ {
+		for r := 0; r < 8; r++ {
+			if tensor[0][r][c] > 0 { // White pawn
+				whiteAdvancement += float32(r) / 7.0
+			}
+			if tensor[6][r][c] > 0 { // Black pawn
+				blackAdvancement += float32(7-r) / 7.0
+			}
+		}
+	}
+	if whitePawns > 0 {
+		features.WhitePawnAdvancement = whiteAdvancement / whitePawns
+	}
+	if blackPawns > 0 {
+		features.BlackPawnAdvancement = blackAdvancement / blackPawns
+	}
+
+	// Center control (d4, d5, e4, e5)
+	var whiteCenter, blackCenter float32
+	centerSquares := [][2]int{{3, 3}, {3, 4}, {4, 3}, {4, 4}}
+	for _, sq := range centerSquares {
+		r, c := sq[0], sq[1]
+		for ch := 0; ch < 6; ch++ { // White pieces
+			if tensor[ch][r][c] > 0 {
+				whiteCenter++
+			}
+		}
+		for ch := 6; ch < 12; ch++ { // Black pieces
+			if tensor[ch][r][c] > 0 {
+				blackCenter++
+			}
+		}
+	}
+	features.WhiteCenterControl = whiteCenter / 4.0
+	features.BlackCenterControl = blackCenter / 4.0
+
+	// Mobility (rough estimate based on piece types and positions)
+	features.WhiteMobility = calculateMobilityEstimate(tensor, true) / 100.0
+	features.BlackMobility = calculateMobilityEstimate(tensor, false) / 100.0
+
+	// Game phase (0 = opening/middlegame, 1 = endgame)
+	if totalMaterial > 0 {
+		features.GamePhase = 1.0 - (totalMaterial / 78.0) // 78 = starting material
+	}
+
+	return features
+}
+
+// calculateMobilityEstimate estimates piece mobility
+func calculateMobilityEstimate(tensor [12][8][8]float32, isWhite bool) float32 {
+	mobility := float32(0.0)
+	startCh, endCh := 0, 6
+	if !isWhite {
+		startCh, endCh = 6, 12
+	}
+
+	for ch := startCh; ch < endCh; ch++ {
+		pieceType := ch % 6
+		for r := 0; r < 8; r++ {
+			for c := 0; c < 8; c++ {
+				if tensor[ch][r][c] > 0 {
+					// Approximate mobility by piece type
+					switch pieceType {
+					case 0: // Pawn
+						mobility += 1.0
+					case 1: // Knight
+						mobility += 4.0
+					case 2: // Bishop
+						mobility += 7.0
+					case 3: // Rook
+						mobility += 10.0
+					case 4: // Queen
+						mobility += 15.0
+					case 5: // King
+						mobility += 3.0
+					}
+
+					// Bonus for central pieces
+					if c >= 2 && c <= 5 && r >= 2 && r <= 5 {
+						mobility += 1.0
+					}
+				}
+			}
+		}
+	}
+
+	return mobility
+}
+
+// absInt returns absolute value of int
+func absInt(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// absFloat returns absolute value of float32
+func absFloat(x float32) float32 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// IsLegalMovePlausible checks if a move is plausibly legal (basic check)
+func IsLegalMovePlausible(fromSquare, toSquare int, tensor [12][8][8]float32) bool {
+	if fromSquare < 0 || fromSquare >= 64 || toSquare < 0 || toSquare >= 64 {
+		return false
+	}
+
+	fromRow, fromCol := fromSquare/8, fromSquare%8
+	toRow, toCol := toSquare/8, toSquare%8
+
+	// Check if source has a piece
+	hasPiece := false
+	movingPieceType := -1
+	isWhite := false
+
+	for ch := 0; ch < 12; ch++ {
+		if tensor[ch][fromRow][fromCol] > 0 {
+			hasPiece = true
+			movingPieceType = ch % 6
+			isWhite = ch < 6
+			break
+		}
+	}
+
+	if !hasPiece {
+		return false
+	}
+
+	// Check if capturing own piece
+	targetStart, targetEnd := 0, 6
+	if !isWhite {
+		targetStart, targetEnd = 6, 12
+	}
+
+	for ch := targetStart; ch < targetEnd; ch++ {
+		if tensor[ch][toRow][toCol] > 0 {
+			return false // Can't capture own piece
+		}
+	}
+
+	// Basic movement rules
+	rowDiff := absInt(toRow - fromRow)
+	colDiff := absInt(toCol - fromCol)
+
+	switch movingPieceType {
+	case 0: // Pawn
+		// Very basic pawn check (no en passant, promotion complexity)
+		if isWhite {
+			if toRow <= fromRow {
+				return false // Must move forward
+			}
+			if colDiff == 0 && rowDiff <= 2 {
+				return true // Forward move (simplified)
+			}
+			if colDiff == 1 && rowDiff == 1 {
+				return true // Diagonal capture (simplified)
+			}
+		} else {
+			if toRow >= fromRow {
+				return false
+			}
+			if colDiff == 0 && rowDiff <= 2 {
+				return true
+			}
+			if colDiff == 1 && rowDiff == 1 {
+				return true
+			}
+		}
+		return false
+
+	case 1: // Knight
+		return (rowDiff == 2 && colDiff == 1) || (rowDiff == 1 && colDiff == 2)
+
+	case 2: // Bishop
+		return rowDiff == colDiff && rowDiff > 0
+
+	case 3: // Rook
+		return (rowDiff == 0 && colDiff > 0) || (colDiff == 0 && rowDiff > 0)
+
+	case 4: // Queen
+		return (rowDiff == colDiff && rowDiff > 0) ||
+			(rowDiff == 0 && colDiff > 0) ||
+			(colDiff == 0 && rowDiff > 0)
+
+	case 5: // King
+		return rowDiff <= 1 && colDiff <= 1 && (rowDiff+colDiff) > 0
+	}
+
+	return true
+}
+
+// FilterIllegalMoves removes obviously illegal moves from predictions
+func FilterIllegalMoves(predictions []MovePrediction, tensor [12][8][8]float32) []MovePrediction {
+	filtered := make([]MovePrediction, 0, len(predictions))
+
+	for _, pred := range predictions {
+		if IsLegalMovePlausible(pred.FromSquare, pred.ToSquare, tensor) {
+			filtered = append(filtered, pred)
+		}
+	}
+
+	return filtered
+}

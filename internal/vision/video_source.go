@@ -9,9 +9,9 @@ import (
 
 // VideoSource provides frames from a video file for replay/testing
 type VideoSource struct {
-	video      *gocv.VideoCapture
-	fps        float64
-	frameCount int
+	video        *gocv.VideoCapture
+	fps          float64
+	frameCount   int
 	currentFrame int
 }
 
@@ -30,9 +30,9 @@ func NewVideoSource(videoPath string) (*VideoSource, error) {
 	frameCount := int(video.Get(gocv.VideoCaptureFrameCount))
 
 	return &VideoSource{
-		video:      video,
-		fps:        fps,
-		frameCount: frameCount,
+		video:        video,
+		fps:          fps,
+		frameCount:   frameCount,
 		currentFrame: 0,
 	}, nil
 }

@@ -12,60 +12,60 @@ import (
 
 // SelfImprover manages the self-improving training loop
 type SelfImprover struct {
-	model          *model.ChessCNN
-	buffer         *ReplayBuffer
-	storage        *ReplayStorage
-	
+	model   *model.ChessCNN
+	buffer  *ReplayBuffer
+	storage *ReplayStorage
+
 	// Configuration
-	config         ImproverConfig
-	
+	config ImproverConfig
+
 	// Statistics
-	stats          ImproverStats
-	
+	stats ImproverStats
+
 	// State
-	lastTrainTime  time.Time
-	trainingCycle  int
+	lastTrainTime time.Time
+	trainingCycle int
 }
 
 // ImproverConfig holds configuration for self-improvement
 type ImproverConfig struct {
 	// Replay buffer settings
-	BufferSize         int     `json:"buffer_size"`
-	MinSamplesForTrain int     `json:"min_samples_for_train"`
-	
+	BufferSize         int `json:"buffer_size"`
+	MinSamplesForTrain int `json:"min_samples_for_train"`
+
 	// Training settings
-	BatchSize          int     `json:"batch_size"`
-	LearningRate       float64 `json:"learning_rate"`
-	TrainIntervalSec   int     `json:"train_interval_sec"`
-	
+	BatchSize        int     `json:"batch_size"`
+	LearningRate     float64 `json:"learning_rate"`
+	TrainIntervalSec int     `json:"train_interval_sec"`
+
 	// Sampling strategy
-	UseRewardWeighting bool    `json:"use_reward_weighting"`
-	UseBalancedSample  bool    `json:"use_balanced_sample"`
-	
+	UseRewardWeighting bool `json:"use_reward_weighting"`
+	UseBalancedSample  bool `json:"use_balanced_sample"`
+
 	// Evaluation
-	EvalBatchSize      int     `json:"eval_batch_size"`
-	AccuracyThreshold  float64 `json:"accuracy_threshold"`
-	
+	EvalBatchSize     int     `json:"eval_batch_size"`
+	AccuracyThreshold float64 `json:"accuracy_threshold"`
+
 	// Storage
-	DBPath             string  `json:"db_path"`
-	JSONLDir           string  `json:"jsonl_dir"`
-	AutoSave           bool    `json:"auto_save"`
+	DBPath   string `json:"db_path"`
+	JSONLDir string `json:"jsonl_dir"`
+	AutoSave bool   `json:"auto_save"`
 }
 
 // ImproverStats tracks improvement metrics
 type ImproverStats struct {
-	TotalCycles        int       `json:"total_cycles"`
-	TotalSamples       int64     `json:"total_samples"`
-	CurrentAccuracy    float64   `json:"current_accuracy"`
-	BaselineAccuracy   float64   `json:"baseline_accuracy"`
-	BestAccuracy       float64   `json:"best_accuracy"`
-	ImprovementDelta   float64   `json:"improvement_delta"`
-	LastTrainTime      time.Time `json:"last_train_time"`
-	AvgTrainDuration   float64   `json:"avg_train_duration_sec"`
-	
+	TotalCycles      int       `json:"total_cycles"`
+	TotalSamples     int64     `json:"total_samples"`
+	CurrentAccuracy  float64   `json:"current_accuracy"`
+	BaselineAccuracy float64   `json:"baseline_accuracy"`
+	BestAccuracy     float64   `json:"best_accuracy"`
+	ImprovementDelta float64   `json:"improvement_delta"`
+	LastTrainTime    time.Time `json:"last_train_time"`
+	AvgTrainDuration float64   `json:"avg_train_duration_sec"`
+
 	// Per-cycle history
-	AccuracyHistory    []float64 `json:"accuracy_history"`
-	RewardHistory      []float64 `json:"reward_history"`
+	AccuracyHistory []float64 `json:"accuracy_history"`
+	RewardHistory   []float64 `json:"reward_history"`
 }
 
 // DefaultImproverConfig returns default configuration
@@ -90,13 +90,13 @@ func DefaultImproverConfig() ImproverConfig {
 func NewSelfImprover(cnn *model.ChessCNN, config ImproverConfig) (*SelfImprover, error) {
 	// Create replay buffer
 	buffer := NewReplayBuffer(config.BufferSize)
-	
+
 	// Create storage
 	storage, err := NewReplayStorage(config.DBPath, config.JSONLDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create storage: %w", err)
 	}
-	
+
 	// Load existing entries
 	existingEntries, err := storage.LoadAll()
 	if err != nil {
@@ -107,7 +107,7 @@ func NewSelfImprover(cnn *model.ChessCNN, config ImproverConfig) (*SelfImprover,
 			buffer.Add(entry)
 		}
 	}
-	
+
 	improver := &SelfImprover{
 		model:         cnn,
 		buffer:        buffer,
@@ -115,14 +115,14 @@ func NewSelfImprover(cnn *model.ChessCNN, config ImproverConfig) (*SelfImprover,
 		config:        config,
 		lastTrainTime: time.Now(),
 	}
-	
+
 	// Evaluate baseline accuracy
 	if len(buffer.Entries) > 0 {
 		improver.stats.BaselineAccuracy = improver.EvaluateAccuracy()
 		improver.stats.CurrentAccuracy = improver.stats.BaselineAccuracy
 		improver.stats.BestAccuracy = improver.stats.BaselineAccuracy
 	}
-	
+
 	return improver, nil
 }
 
@@ -141,7 +141,7 @@ func (si *SelfImprover) ObservePrediction(
 		Timestamp:     time.Now().Unix(),
 		Confidence:    confidence,
 	}
-	
+
 	// Check if actual move was in top-K
 	entry.WasInTopK = false
 	for i, pred := range topKPredictions {
@@ -151,18 +151,18 @@ func (si *SelfImprover) ObservePrediction(
 			break
 		}
 	}
-	
+
 	// Add to buffer
 	si.buffer.Add(entry)
 	si.stats.TotalSamples++
-	
+
 	// Auto-save to storage if enabled
 	if si.config.AutoSave {
 		if err := si.storage.Store(entry); err != nil {
 			log.Printf("Warning: failed to store replay entry: %v", err)
 		}
 	}
-	
+
 	// Check if it's time to train
 	si.CheckAndTrain()
 }
@@ -173,19 +173,19 @@ func (si *SelfImprover) CheckAndTrain() bool {
 	if len(si.buffer.Entries) < si.config.MinSamplesForTrain {
 		return false
 	}
-	
+
 	// Check if enough time has passed
 	timeSinceLastTrain := time.Since(si.lastTrainTime)
 	if timeSinceLastTrain.Seconds() < float64(si.config.TrainIntervalSec) {
 		return false
 	}
-	
+
 	// Execute training
 	if err := si.Train(); err != nil {
 		log.Printf("Training failed: %v", err)
 		return false
 	}
-	
+
 	return true
 }
 
@@ -193,7 +193,7 @@ func (si *SelfImprover) CheckAndTrain() bool {
 func (si *SelfImprover) Train() error {
 	log.Printf("Starting self-improvement training cycle %d", si.trainingCycle+1)
 	startTime := time.Now()
-	
+
 	// Get sample from buffer
 	var sample []ReplayEntry
 	if si.config.UseRewardWeighting {
@@ -209,34 +209,34 @@ func (si *SelfImprover) Train() error {
 			sample = si.buffer.Entries[start:]
 		}
 	}
-	
+
 	if len(sample) == 0 {
 		return fmt.Errorf("no samples available for training")
 	}
-	
-	log.Printf("Training on %d samples (reward-weighted: %v)", 
+
+	log.Printf("Training on %d samples (reward-weighted: %v)",
 		len(sample), si.config.UseRewardWeighting)
-	
+
 	// Prepare training data
 	inputTensors := make([][12][8][8]float32, len(sample))
 	targetMoves := make([]int, len(sample))
-	
+
 	for i, entry := range sample {
 		inputTensors[i] = entry.StateTensor
 		// Target is the actual move index
 		targetMoves[i] = entry.ActualMove.Index
 	}
-	
+
 	// Execute training step (would need to implement in model)
 	// For now, just log that we would train
 	log.Printf("Would train model on batch with %d samples", len(sample))
 	log.Printf("Sample stats: %d correct, %d incorrect",
 		countCorrect(sample), len(sample)-countCorrect(sample))
-	
+
 	// Evaluate accuracy after training
 	oldAccuracy := si.stats.CurrentAccuracy
 	newAccuracy := si.EvaluateAccuracy()
-	
+
 	// Update statistics
 	si.stats.TotalCycles++
 	si.stats.CurrentAccuracy = newAccuracy
@@ -244,17 +244,17 @@ func (si *SelfImprover) Train() error {
 	si.stats.LastTrainTime = time.Now()
 	si.lastTrainTime = time.Now()
 	si.trainingCycle++
-	
+
 	if newAccuracy > si.stats.BestAccuracy {
 		si.stats.BestAccuracy = newAccuracy
 	}
-	
+
 	// Update history
 	si.stats.AccuracyHistory = append(si.stats.AccuracyHistory, newAccuracy)
-	
+
 	bufferStats := si.buffer.GetStats()
 	si.stats.RewardHistory = append(si.stats.RewardHistory, bufferStats.AverageReward)
-	
+
 	// Update average train duration
 	duration := time.Since(startTime).Seconds()
 	if si.stats.AvgTrainDuration == 0 {
@@ -262,14 +262,14 @@ func (si *SelfImprover) Train() error {
 	} else {
 		si.stats.AvgTrainDuration = (si.stats.AvgTrainDuration + duration) / 2
 	}
-	
+
 	log.Printf("Training cycle %d complete: accuracy %.2f%% -> %.2f%% (Δ%+.2f%%), duration: %.2fs",
 		si.trainingCycle,
 		oldAccuracy*100,
 		newAccuracy*100,
 		si.stats.ImprovementDelta*100,
 		duration)
-	
+
 	return nil
 }
 
@@ -278,10 +278,10 @@ func (si *SelfImprover) EvaluateAccuracy() float64 {
 	if len(si.buffer.Entries) == 0 {
 		return 0.0
 	}
-	
+
 	// Use buffer stats for accuracy
 	stats := si.buffer.GetStats()
-	
+
 	// Can also evaluate on a held-out set if available
 	// For now, use recent accuracy from buffer
 	return stats.RecentAccuracy
@@ -301,23 +301,23 @@ func (si *SelfImprover) GetBufferStats() ReplayStats {
 func (si *SelfImprover) ExportMetrics(filename string) error {
 	// Create performance data structure
 	type PerformanceData struct {
-		Stats          ImproverStats `json:"stats"`
-		BufferStats    ReplayStats   `json:"buffer_stats"`
-		Config         ImproverConfig `json:"config"`
-		Timestamp      time.Time     `json:"timestamp"`
-		GraphData      GraphData     `json:"graph_data"`
+		Stats       ImproverStats  `json:"stats"`
+		BufferStats ReplayStats    `json:"buffer_stats"`
+		Config      ImproverConfig `json:"config"`
+		Timestamp   time.Time      `json:"timestamp"`
+		GraphData   GraphData      `json:"graph_data"`
 	}
-	
+
 	graphData := GraphData{
-		Cycles:    make([]int, len(si.stats.AccuracyHistory)),
-		Accuracy:  si.stats.AccuracyHistory,
-		Rewards:   si.stats.RewardHistory,
+		Cycles:   make([]int, len(si.stats.AccuracyHistory)),
+		Accuracy: si.stats.AccuracyHistory,
+		Rewards:  si.stats.RewardHistory,
 	}
-	
+
 	for i := range graphData.Cycles {
 		graphData.Cycles[i] = i + 1
 	}
-	
+
 	data := PerformanceData{
 		Stats:       si.stats,
 		BufferStats: si.buffer.GetStats(),
@@ -325,13 +325,13 @@ func (si *SelfImprover) ExportMetrics(filename string) error {
 		Timestamp:   time.Now(),
 		GraphData:   graphData,
 	}
-	
+
 	// Save to storage metadata
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	
+
 	return si.storage.SetMetadata(filename, string(jsonData))
 }
 
@@ -341,7 +341,7 @@ func (si *SelfImprover) Close() error {
 	if err := si.ExportMetrics("final_metrics"); err != nil {
 		log.Printf("Warning: failed to export metrics: %v", err)
 	}
-	
+
 	return si.storage.Close()
 }
 
@@ -372,19 +372,19 @@ func (si *SelfImprover) CalculateImprovement() ImprovementMetrics {
 		CurrentAccuracy:  si.stats.CurrentAccuracy,
 		BestAccuracy:     si.stats.BestAccuracy,
 	}
-	
+
 	if si.stats.BaselineAccuracy > 0 {
 		metrics.RelativeImprovement = (si.stats.CurrentAccuracy - si.stats.BaselineAccuracy) / si.stats.BaselineAccuracy
 		metrics.AbsoluteImprovement = si.stats.CurrentAccuracy - si.stats.BaselineAccuracy
 	}
-	
+
 	// Calculate trend
 	if len(si.stats.AccuracyHistory) >= 2 {
 		recent := si.stats.AccuracyHistory[len(si.stats.AccuracyHistory)-1]
 		previous := si.stats.AccuracyHistory[len(si.stats.AccuracyHistory)-2]
 		metrics.RecentTrend = recent - previous
 	}
-	
+
 	// Calculate variance
 	if len(si.stats.AccuracyHistory) > 0 {
 		mean := si.stats.CurrentAccuracy
@@ -396,9 +396,9 @@ func (si *SelfImprover) CalculateImprovement() ImprovementMetrics {
 		metrics.Variance = sumSquares / float64(len(si.stats.AccuracyHistory))
 		metrics.StdDev = math.Sqrt(metrics.Variance)
 	}
-	
+
 	metrics.IsImproving = metrics.RecentTrend > 0
-	
+
 	return metrics
 }
 
@@ -424,7 +424,7 @@ func (im ImprovementMetrics) String() string {
 	} else if im.RecentTrend < 0 {
 		trend = "↓"
 	}
-	
+
 	return fmt.Sprintf(
 		"Improvement{Baseline: %.2f%%, Current: %.2f%%, Best: %.2f%%, Δ: %+.2f%% %s}",
 		im.BaselineAccuracy*100,

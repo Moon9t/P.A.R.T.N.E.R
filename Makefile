@@ -48,6 +48,25 @@ test-model: setup
 	@echo "Testing ML model implementation..."
 	@go run cmd/test-model/main.go
 
+# Build all tools
+build-tools:
+	@echo "Building all tools..."
+	@mkdir -p $(BUILD_DIR)
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/partner-cli cmd/partner-cli/main.go
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/ingest-pgn cmd/ingest-pgn/main.go
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/train-cnn cmd/train-cnn/main.go
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/test-model cmd/test-model/main.go
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/test-adapter cmd/test-adapter/main.go
+	@echo "All tools built successfully!"
+
+# Test adapter system
+test-adapter:
+	@echo "Testing Game Adapter Interface..."
+	@mkdir -p $(BUILD_DIR)
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/test-adapter cmd/test-adapter/main.go
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 $(BUILD_DIR)/test-adapter
+	@echo ""
+
 # Run in advise mode
 run-advise: build setup
 	@echo "Starting in ADVISE mode..."
@@ -96,15 +115,22 @@ help:
 	@echo "P.A.R.T.N.E.R Makefile"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make build        - Build the application"
-	@echo "  make deps         - Install dependencies"
-	@echo "  make setup        - Create required directories"
-	@echo "  make clean        - Clean build artifacts"
-	@echo "  make run-advise   - Run in advise mode"
-	@echo "  make run-train    - Run in train mode"
-	@echo "  make run-watch    - Run in watch mode"
-	@echo "  make install      - Install to /usr/local/bin"
-	@echo "  make uninstall    - Uninstall from /usr/local/bin"
-	@echo "  make fmt          - Format code"
-	@echo "  make test         - Run tests"
-	@echo "  make help         - Show this help"
+	@echo "  make build          - Build the application"
+	@echo "  make build-tools    - Build all tools (partner-cli, train-cnn, etc.)"
+	@echo "  make test-adapter   - Test the game adapter system"
+	@echo "  make deps           - Install dependencies"
+	@echo "  make setup          - Create required directories"
+	@echo "  make clean          - Clean build artifacts"
+	@echo "  make run-advise     - Run in advise mode"
+	@echo "  make run-train      - Run in train mode"
+	@echo "  make run-watch      - Run in watch mode"
+	@echo "  make install        - Install to /usr/local/bin"
+	@echo "  make uninstall      - Uninstall from /usr/local/bin"
+	@echo "  make fmt            - Format code"
+	@echo "  make test           - Run tests"
+	@echo "  make help           - Show this help"
+	@echo ""
+	@echo "Run binaries directly:"
+	@echo "  ./run.sh <binary>   - Run any binary with proper environment"
+	@echo "  ./run.sh test-adapter"
+	@echo "  ./run.sh partner-cli --help"

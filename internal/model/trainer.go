@@ -582,3 +582,86 @@ func (t *Trainer) TrainWithCallback(dataset *data.Dataset, callback func(Trainin
 
 	return nil
 }
+
+// ComputeEnhancedLoss computes loss with chess-specific penalties
+// This can be used for custom training loops that need chess-aware loss
+func ComputeEnhancedLoss(predictions []float64, targetIdx int, boardTensor [12][8][8]float32) float64 {
+	// Base cross-entropy loss
+	if targetIdx < 0 || targetIdx >= len(predictions) {
+		return 10.0 // High penalty for invalid target
+	}
+
+	baseLoss := -math.Log(predictions[targetIdx] + 1e-10)
+
+	// Extract chess features
+	features := ExtractChessFeatures(boardTensor)
+
+	// Chess-specific penalties
+	penalty := 0.0
+
+	// 1. Penalize moves when in severe material disadvantage (might be unsound sacrifices)
+	if features.MaterialBalance < -0.5 {
+		penalty += 0.3 * float64(absFloat(features.MaterialBalance))
+	}
+
+	// 2. Encourage center control in opening/middlegame
+	if features.GamePhase < 0.5 {
+		// Reward moves to center
+		targetSquare := targetIdx % 64
+		targetRow, targetCol := targetSquare/8, targetSquare%8
+		if (targetRow == 3 || targetRow == 4) && (targetCol == 3 || targetCol == 4) {
+			penalty -= 0.1 // Bonus (negative penalty)
+		}
+	}
+
+	// 3. King safety penalty in middlegame
+	if features.GamePhase > 0.2 && features.GamePhase < 0.7 {
+		// Penalize exposed king
+		avgKingSafety := (features.WhiteKingSafety + features.BlackKingSafety) / 2.0
+		if avgKingSafety > 0.7 { // King too exposed
+			penalty += 0.2
+		}
+	}
+
+	// 4. Illegal move approximation penalty
+	fromSquare := targetIdx / 64
+	toSquare := targetIdx % 64
+	if !IsLegalMovePlausible(fromSquare, toSquare, boardTensor) {
+		penalty += 2.0 // Heavy penalty for obviously illegal moves
+	}
+
+	// Total loss
+	totalLoss := baseLoss + 0.1*penalty
+
+	return totalLoss
+}
+
+// EvaluatePositionStrength provides a simple evaluation of the position
+func EvaluatePositionStrength(tensor [12][8][8]float32) float64 {
+	features := ExtractChessFeatures(tensor)
+
+	score := 0.0
+
+	// Material is most important
+	score += float64(features.MaterialBalance) * 10.0
+
+	// Center control
+	centerControl := float64(features.WhiteCenterControl - features.BlackCenterControl)
+	score += centerControl * 2.0
+
+	// Mobility
+	mobility := float64(features.WhiteMobility - features.BlackMobility)
+	score += mobility * 1.5
+
+	// Pawn advancement
+	pawnAdv := float64(features.WhitePawnAdvancement - features.BlackPawnAdvancement)
+	score += pawnAdv * 1.0
+
+	// King safety (more important in middlegame)
+	if features.GamePhase < 0.7 {
+		kingSafety := float64(features.BlackKingSafety - features.WhiteKingSafety)
+		score += kingSafety * 1.5
+	}
+
+	return score
+}

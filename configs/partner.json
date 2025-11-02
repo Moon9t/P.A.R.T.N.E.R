@@ -1,0 +1,43 @@
+{
+  "app_name": "P.A.R.T.N.E.R",
+  "version": "1.0.0",
+  "vision": {
+    "screen_region": {
+      "x": 100,
+      "y": 100,
+      "width": 800,
+      "height": 800
+    },
+    "capture_fps": 10,
+    "board_size": 8,
+    "diff_threshold": 0.05
+  },
+  "model": {
+    "input_size": 768,
+    "hidden_size": 256,
+    "output_size": 4096,
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "model_path": "data/models/chess_cnn.model"
+  },
+  "training": {
+    "replay_buffer_size": 1000,
+    "db_path": "data/replays/replay.db",
+    "save_interval": 100,
+    "min_samples_before_training": 100
+  },
+  "interface": {
+    "log_level": "info",
+    "log_path": "logs/partner.log",
+    "enable_tts": false,
+    "confidence_threshold": 0.1,
+    "quiet": false,
+    "top_moves": 5
+  },
+  "performance": {
+    "max_cpu_usage": 80.0,
+    "max_memory_mb": 2048,
+    "goroutine_limit": 100,
+    "enable_profiling": false
+  }
+}

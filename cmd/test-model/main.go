@@ -176,8 +176,8 @@ func main() {
 		Verbose:      false,
 	}
 
-	epochMetrics := make([]*training.TrainingMetrics, 0)
-	err = training.Train(net, trainInputs, trainTargets, config, func(metrics *training.TrainingMetrics) {
+	epochMetrics := make([]*training.BasicTrainingMetrics, 0)
+	err = training.Train(net, trainInputs, trainTargets, config, func(metrics *training.BasicTrainingMetrics) {
 		epochMetrics = append(epochMetrics, metrics)
 		fmt.Printf("  Epoch %d: Loss=%.4f\n", metrics.Epoch, metrics.Loss)
 	})

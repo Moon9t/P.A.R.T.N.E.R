@@ -10,17 +10,17 @@ import (
 
 // Pipeline manages the complete vision processing pipeline
 type Pipeline struct {
-	config       *Config
-	source       FrameSource
-	capturer     *Capturer
-	detector     *BoardDetector
-	lastBoard    *[12][8][8]float32
-	tensorChan   chan<- BoardStateTensor
-	stopChan     chan struct{}
-	wg           sync.WaitGroup
-	mu           sync.Mutex
-	running      bool
-	stats        PipelineStats
+	config     *Config
+	source     FrameSource
+	capturer   *Capturer
+	detector   *BoardDetector
+	lastBoard  *[12][8][8]float32
+	tensorChan chan<- BoardStateTensor
+	stopChan   chan struct{}
+	wg         sync.WaitGroup
+	mu         sync.Mutex
+	running    bool
+	stats      PipelineStats
 }
 
 // PipelineStats tracks pipeline performance

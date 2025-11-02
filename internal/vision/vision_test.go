@@ -152,9 +152,9 @@ func TestValidateBoardTensor(t *testing.T) {
 					tensor[6][6][i] = 1.0
 				}
 				// Add some pieces
-				tensor[3][0][0] = 1.0 // White rook
-				tensor[5][0][4] = 1.0 // White king
-				tensor[9][7][0] = 1.0 // Black rook
+				tensor[3][0][0] = 1.0  // White rook
+				tensor[5][0][4] = 1.0  // White king
+				tensor[9][7][0] = 1.0  // Black rook
 				tensor[11][7][4] = 1.0 // Black king
 				return tensor
 			},

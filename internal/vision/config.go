@@ -13,9 +13,9 @@ type Config struct {
 	CaptureRegion CaptureRegion `json:"capture_region"`
 
 	// Board detection settings
-	BoardSize     int  `json:"board_size"`      // Number of squares (8 for chess)
-	SquareSize    int  `json:"square_size"`     // Pixels per square
-	UseGrayscale  bool `json:"use_grayscale"`   // Use grayscale processing
+	BoardSize     int     `json:"board_size"`     // Number of squares (8 for chess)
+	SquareSize    int     `json:"square_size"`    // Pixels per square
+	UseGrayscale  bool    `json:"use_grayscale"`  // Use grayscale processing
 	ConfidenceMin float64 `json:"confidence_min"` // Minimum confidence threshold
 
 	// Change detection settings

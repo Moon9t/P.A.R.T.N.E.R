@@ -27,17 +27,17 @@ func NewReplayStorage(dbPath, jsonlDir string) (*ReplayStorage, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create db directory: %w", err)
 	}
-	
+
 	if err := os.MkdirAll(jsonlDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create jsonl directory: %w", err)
 	}
-	
+
 	// Open BoltDB
 	db, err := bolt.Open(dbPath, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
-	
+
 	// Create buckets
 	err = db.Update(func(tx *bolt.Tx) error {
 		if _, err := tx.CreateBucketIfNotExists([]byte(replayBucketName)); err != nil {
@@ -48,12 +48,12 @@ func NewReplayStorage(dbPath, jsonlDir string) (*ReplayStorage, error) {
 		}
 		return nil
 	})
-	
+
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to create buckets: %w", err)
 	}
-	
+
 	return &ReplayStorage{
 		db:       db,
 		jsonlDir: jsonlDir,
@@ -64,23 +64,23 @@ func NewReplayStorage(dbPath, jsonlDir string) (*ReplayStorage, error) {
 func (rs *ReplayStorage) Store(entry ReplayEntry) error {
 	// Generate key (timestamp + random suffix for uniqueness)
 	key := []byte(fmt.Sprintf("%d_%d", entry.Timestamp, time.Now().UnixNano()))
-	
+
 	// Serialize entry
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return fmt.Errorf("failed to marshal entry: %w", err)
 	}
-	
+
 	// Store in BoltDB
 	err = rs.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(replayBucketName))
 		return bucket.Put(key, data)
 	})
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to store entry: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -88,19 +88,19 @@ func (rs *ReplayStorage) Store(entry ReplayEntry) error {
 func (rs *ReplayStorage) StoreBatch(entries []ReplayEntry) error {
 	return rs.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(replayBucketName))
-		
+
 		for _, entry := range entries {
 			key := []byte(fmt.Sprintf("%d_%d", entry.Timestamp, time.Now().UnixNano()))
 			data, err := json.Marshal(entry)
 			if err != nil {
 				return fmt.Errorf("failed to marshal entry: %w", err)
 			}
-			
+
 			if err := bucket.Put(key, data); err != nil {
 				return err
 			}
 		}
-		
+
 		return nil
 	})
 }
@@ -108,10 +108,10 @@ func (rs *ReplayStorage) StoreBatch(entries []ReplayEntry) error {
 // LoadAll loads all replay entries from storage
 func (rs *ReplayStorage) LoadAll() ([]ReplayEntry, error) {
 	var entries []ReplayEntry
-	
+
 	err := rs.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(replayBucketName))
-		
+
 		return bucket.ForEach(func(k, v []byte) error {
 			var entry ReplayEntry
 			if err := json.Unmarshal(v, &entry); err != nil {
@@ -121,11 +121,11 @@ func (rs *ReplayStorage) LoadAll() ([]ReplayEntry, error) {
 			return nil
 		})
 	})
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to load entries: %w", err)
 	}
-	
+
 	return entries, nil
 }
 
@@ -135,27 +135,27 @@ func (rs *ReplayStorage) LoadRecent(n int) ([]ReplayEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Sort by timestamp (descending) and take first N
 	// For now, return last N entries
 	if len(entries) <= n {
 		return entries, nil
 	}
-	
+
 	return entries[len(entries)-n:], nil
 }
 
 // Count returns the number of stored entries
 func (rs *ReplayStorage) Count() (int, error) {
 	var count int
-	
+
 	err := rs.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(replayBucketName))
 		stats := bucket.Stats()
 		count = stats.KeyN
 		return nil
 	})
-	
+
 	return count, err
 }
 
@@ -165,21 +165,21 @@ func (rs *ReplayStorage) ExportToJSONL(filename string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	filepath := filepath.Join(rs.jsonlDir, filename)
 	file, err := os.Create(filepath)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer file.Close()
-	
+
 	encoder := json.NewEncoder(file)
 	for _, entry := range entries {
 		if err := encoder.Encode(entry); err != nil {
 			return fmt.Errorf("failed to encode entry: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -191,10 +191,10 @@ func (rs *ReplayStorage) ImportFromJSONL(filename string) error {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
-	
+
 	decoder := json.NewDecoder(file)
 	var entries []ReplayEntry
-	
+
 	for decoder.More() {
 		var entry ReplayEntry
 		if err := decoder.Decode(&entry); err != nil {
@@ -202,7 +202,7 @@ func (rs *ReplayStorage) ImportFromJSONL(filename string) error {
 		}
 		entries = append(entries, entry)
 	}
-	
+
 	return rs.StoreBatch(entries)
 }
 
@@ -220,7 +220,7 @@ func (rs *ReplayStorage) Clear() error {
 // GetMetadata retrieves metadata value
 func (rs *ReplayStorage) GetMetadata(key string) (string, error) {
 	var value string
-	
+
 	err := rs.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(metaBucketName))
 		data := bucket.Get([]byte(key))
@@ -230,7 +230,7 @@ func (rs *ReplayStorage) GetMetadata(key string) (string, error) {
 		value = string(data)
 		return nil
 	})
-	
+
 	return value, err
 }
 

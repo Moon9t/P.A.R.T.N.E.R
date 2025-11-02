@@ -273,6 +273,84 @@ func (ds *Dataset) VerifyIntegrity() error {
 	return nil
 }
 
+// QuickVerifyIntegrity performs fast integrity check by sampling entries
+// sampleRate: fraction of entries to check (e.g., 0.1 = 10%)
+func (ds *Dataset) QuickVerifyIntegrity(sampleRate float64) error {
+	ds.mu.RLock()
+	defer ds.mu.RUnlock()
+
+	if sampleRate <= 0 || sampleRate > 1 {
+		sampleRate = 0.1 // Default to 10% sampling
+	}
+
+	errors := 0
+	totalEntries := 0
+	sampledEntries := 0
+
+	err := ds.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(ds.bucketName))
+		if bucket == nil {
+			return fmt.Errorf("bucket not found")
+		}
+
+		return bucket.ForEach(func(k, v []byte) error {
+			totalEntries++
+
+			// Sample based on rate - use deterministic sampling
+			if float64(totalEntries%100) >= sampleRate*100 {
+				return nil
+			}
+
+			sampledEntries++
+
+			var entry DataEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				errors++
+				return nil
+			}
+
+			// Verify tensor dimensions
+			expectedLen := NumChannels * BoardSize * BoardSize
+			if len(entry.StateTensor) != expectedLen {
+				errors++
+				return nil
+			}
+
+			// Verify move labels
+			if entry.FromSquare < 0 || entry.FromSquare >= 64 {
+				errors++
+				return nil
+			}
+			if entry.ToSquare < 0 || entry.ToSquare >= 64 {
+				errors++
+				return nil
+			}
+
+			// Quick tensor validation (just check dimensions)
+			if len(entry.StateTensor) != 768 {
+				errors++
+				return nil
+			}
+
+			return nil
+		})
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if errors > 0 {
+		return fmt.Errorf("quick check failed: %d/%d sampled entries have errors (%.1f%% sample rate)",
+			errors, sampledEntries, sampleRate*100)
+	}
+
+	fmt.Printf("✓ Quick verification passed: %d/%d entries checked (%.1f%% sample)\n",
+		sampledEntries, totalEntries, sampleRate*100)
+
+	return nil
+}
+
 // Clear removes all entries from the dataset
 func (ds *Dataset) Clear() error {
 	ds.mu.Lock()

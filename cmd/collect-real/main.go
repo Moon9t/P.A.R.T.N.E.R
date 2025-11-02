@@ -291,13 +291,11 @@ func detectMove(oldState, newState []float64) (int, error) {
 	toSquare := changedSquares[1]
 
 	// Determine which square had the piece removed (from) and added (to)
-	if newState[fromSquare] < oldState[fromSquare] {
-		// fromSquare was emptied (or piece value decreased)
-		fromSquare, toSquare = fromSquare, toSquare
-	} else {
-		// toSquare was emptied
+	if newState[fromSquare] >= oldState[fromSquare] {
+		// toSquare was emptied, swap them
 		fromSquare, toSquare = toSquare, fromSquare
 	}
+	// Otherwise fromSquare was emptied, no swap needed
 
 	move := fromSquare*64 + toSquare
 	return move, nil

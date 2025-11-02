@@ -4,6 +4,8 @@ go 1.21
 
 require (
 	github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329
+	github.com/notnil/chess v1.10.0
+	go.etcd.io/bbolt v1.3.8
 	go.uber.org/zap v1.26.0
 	gocv.io/x/gocv v0.31.0
 	gorgonia.org/gorgonia v0.9.17
@@ -23,10 +25,8 @@ require (
 	github.com/jezek/xgb v1.0.0 // indirect
 	github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
-	github.com/notnil/chess v1.10.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/xtgo/set v1.0.0 // indirect
-	go.etcd.io/bbolt v1.3.8 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 	golang.org/x/sys v0.13.0 // indirect

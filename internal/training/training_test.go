@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 	"time"
-	
+
 	"github.com/thyrook/partner/internal/model"
 )
 
