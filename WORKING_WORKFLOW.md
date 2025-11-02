@@ -44,6 +44,20 @@ Top prediction: d2 → d4 (prob: 61.89%)
 ✓ Inference test completed successfully!
 ```
 
+### Step 4: Analyze Model Accuracy
+
+```bash
+# Run comprehensive analysis on the dataset
+./run.sh partner-cli --adapter=chess --mode=analyze
+
+# Expected output:
+# Total Positions: 80
+# Correct Moves: 4
+# Top-1 Accuracy: 5.00%
+# Top-3 Accuracy: 7.50%
+# Top-5 Accuracy: 8.75%
+```
+
 ## Architecture
 
 ### Data Flow
@@ -132,21 +146,11 @@ Export your games from chess.com or lichess.org in PGN format. Make sure moves a
 
 ### "Dataset is empty"
 
-This error appears when using `partner-cli --mode=analyze` because it expects a different database format (`internal/storage.ObservationStore` instead of `internal/data.Dataset`).
-
-**Solution:** Use the inference test built into `train-cnn` instead. It automatically runs after training.
+**FIXED!** This issue has been resolved. The analyze mode now uses the same dataset format as ingestion and training.
 
 ### "Model not found"
 
-The model paths are:
-- Training saves to: `models/chess_cnn.gob`
-- CLI expects: `data/models/chess_cnn.model`
-
-**Temporary fix:**
-```bash
-mkdir -p data/models
-cp models/chess_cnn.gob data/models/chess_cnn.model
-```
+**FIXED!** The config now expects the model at `data/models/chess_cnn.gob`, matching where train-cnn saves it.
 
 ### Low Accuracy
 
@@ -184,8 +188,8 @@ with open('output.pgn', 'w') as f:
 
 ## Next Steps
 
-1. ✅ **Current State**: Working end-to-end with small dataset
-2. 🔄 **In Progress**: Fix model path mismatch
+1. ✅ **Complete**: Full end-to-end workflow working
+2. ✅ **Complete**: All database format issues resolved
 3. ⏭️ **Next**: Ingest larger dataset (10K games)
 4. ⏭️ **Future**: Better architecture (residual blocks, more layers)
 
@@ -197,7 +201,7 @@ with open('output.pgn', 'w') as f:
 | Training | ✅ Working | ~700ms per epoch |
 | Model Saving | ✅ Working | Saves to `models/chess_cnn.gob` |
 | Inference | ✅ Working | Automatic test after training |
-| Analyze Mode | ⚠️ Limited | Database format mismatch |
+| Analyze Mode | ✅ Working | Full accuracy analysis |
 
 ---
 

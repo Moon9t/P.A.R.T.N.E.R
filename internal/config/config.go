@@ -126,11 +126,11 @@ func DefaultConfig() *Config {
 			OutputSize:   4096, // 64 * 64 possible moves
 			LearningRate: 0.001,
 			BatchSize:    32,
-			ModelPath:    filepath.Join(dataDir, "models", "chess_cnn.model"),
+			ModelPath:    filepath.Join(dataDir, "models", "chess_cnn.gob"),
 		},
 		Training: TrainingConfig{
 			ReplayBufferSize:         1000,
-			DBPath:                   filepath.Join(dataDir, "replays", "replay.db"),
+			DBPath:                   filepath.Join(dataDir, "positions.db"),
 			SaveInterval:             100,
 			MinSamplesBeforeTraining: 100,
 		},

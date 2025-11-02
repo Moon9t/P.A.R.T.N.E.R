@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/thyrook/partner/internal/config"
+	"github.com/thyrook/partner/internal/data"
 	"github.com/thyrook/partner/internal/decision"
 	"github.com/thyrook/partner/internal/iface"
 	"github.com/thyrook/partner/internal/iface/logger"
@@ -407,61 +408,54 @@ func runAnalyzeMode(ctx context.Context, cfg *config.Config, cli *iface.CLI) err
 		return fmt.Errorf("model not found: %s", cfg.Model.ModelPath)
 	}
 
-	// Open observation store
+	// Open dataset (use data.Dataset instead of storage.ObservationStore)
 	cli.PrintStatus(fmt.Sprintf("Loading dataset from %s", cfg.Training.DBPath), "info")
-	store, err := storage.NewObservationStore(cfg.Training.DBPath, cfg.Training.ReplayBufferSize)
+	dataset, err := data.NewDataset(cfg.Training.DBPath)
 	if err != nil {
 		return fmt.Errorf("failed to open dataset: %w", err)
 	}
-	defer store.Close()
+	defer dataset.Close()
 
-	count, err := store.CountSamples()
+	stats, err := dataset.GetStats()
 	if err != nil {
-		return fmt.Errorf("failed to get dataset count: %w", err)
+		return fmt.Errorf("failed to get dataset stats: %w", err)
 	}
 
-	if count == 0 {
+	if stats.TotalEntries == 0 {
 		return fmt.Errorf("dataset is empty")
 	}
 
-	cli.PrintStatus(fmt.Sprintf("Dataset: %d observations", count), "success")
+	cli.PrintStatus(fmt.Sprintf("Dataset: %d observations", stats.TotalEntries), "success")
 
-	// Initialize model
+	// Initialize model for inference
 	cli.PrintStatus("Loading model...", "info")
-	net, err := model.NewChessNet(
-		cfg.Model.InputSize,
-		cfg.Model.HiddenSize,
-		cfg.Model.OutputSize,
-	)
+	cnnModel, err := model.NewChessCNNForInference(cfg.Model.ModelPath)
 	if err != nil {
-		return fmt.Errorf("failed to create model: %w", err)
-	}
-
-	if err := net.Load(cfg.Model.ModelPath); err != nil {
 		return fmt.Errorf("failed to load model: %w", err)
 	}
+	defer cnnModel.Close()
 
 	cli.PrintStatus("Model loaded successfully", "success")
 	cli.PrintSeparator()
 
 	// Analyze on test set
 	testCount := 1000
-	if testCount > int(count) {
-		testCount = int(count)
+	if testCount > stats.TotalEntries {
+		testCount = stats.TotalEntries
 	}
 
 	cli.PrintStatus(fmt.Sprintf("Analyzing %d observations", testCount), "info")
 
-	// Load test observations
-	observations, err := store.GetSequentialBatch(testCount, 0)
+	// Load test entries from dataset
+	entries, err := dataset.LoadBatch(0, testCount)
 	if err != nil {
-		return fmt.Errorf("failed to load observations: %w", err)
+		return fmt.Errorf("failed to load entries: %w", err)
 	}
 
 	correct := 0
 	topKCorrect := make(map[int]int)
 
-	for i, obs := range observations {
+	for i, entry := range entries {
 		select {
 		case <-ctx.Done():
 			return nil
@@ -470,19 +464,26 @@ func runAnalyzeMode(ctx context.Context, cfg *config.Config, cli *iface.CLI) err
 
 		cli.PrintProgress(i+1, testCount, fmt.Sprintf("Analyzing observation %d/%d", i+1, testCount))
 
-		// Get predictions
-		predictions, err := net.Predict(obs.State)
+		// Convert flat array to 3D tensor
+		boardTensor, err := data.FlatArrayToTensor(entry.StateTensor)
+		if err != nil {
+			logger.Error("Failed to convert tensor", "observation", i, "error", err)
+			continue
+		}
+
+		// Get predictions (top 10 moves)
+		moves, err := cnnModel.Predict(boardTensor, 10)
 		if err != nil {
 			logger.Error("Prediction failed", "observation", i, "error", err)
 			continue
 		}
 
-		// Convert to top K moves
-		moves := model.GetTopKMoves(predictions, 10)
+		// Calculate the expected move index from from/to squares
+		expectedMoveIndex := entry.FromSquare*64 + entry.ToSquare
 
 		// Check if correct move is in top predictions
 		for k, move := range moves {
-			if move.MoveIndex == obs.MoveLabel {
+			if move.MoveIndex == expectedMoveIndex {
 				if k == 0 {
 					correct++
 				}
