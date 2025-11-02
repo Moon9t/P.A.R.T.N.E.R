@@ -57,13 +57,13 @@ func NewChessCNNForInference(checkpointPath string) (*ChessCNN, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inference model: %w", err)
 	}
-	
+
 	// Load weights from checkpoint
 	if err := model.LoadModel(checkpointPath); err != nil {
 		model.Close()
 		return nil, fmt.Errorf("failed to load checkpoint: %w", err)
 	}
-	
+
 	return model, nil
 }
 
@@ -234,8 +234,8 @@ func (cnn *ChessCNN) Predict(boardTensor [12][8][8]float32, topK int) ([]MovePre
 
 // MovePrediction represents a predicted move with probability
 type MovePrediction struct {
-	FromSquare  int     // 0-63
-	ToSquare    int     // 0-63
+	FromSquare  int // 0-63
+	ToSquare    int // 0-63
 	Probability float64
 	MoveIndex   int // Combined index (from*64 + to)
 }

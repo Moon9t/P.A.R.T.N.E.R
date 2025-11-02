@@ -1,0 +1,14 @@
+{
+  "capture_region": {
+    "x": 100,
+    "y": 100,
+    "width": 800,
+    "height": 800
+  },
+  "board_size": 8,
+  "square_size": 100,
+  "use_grayscale": true,
+  "confidence_min": 0.5,
+  "diff_threshold": 10.0,
+  "fps": 2
+}

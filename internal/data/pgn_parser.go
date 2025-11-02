@@ -77,7 +77,7 @@ func ExtractPositions(game *chess.Game) ([]*ChessPosition, error) {
 	for _, move := range moves {
 		// Get current position before the move
 		pos := tempGame.Position()
-		
+
 		// Store the position and move
 		positions = append(positions, &ChessPosition{
 			Board: pos.Board(),

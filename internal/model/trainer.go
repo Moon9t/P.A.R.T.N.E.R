@@ -40,12 +40,12 @@ func DefaultTrainingConfig() *TrainingConfig {
 
 // TrainingMetrics tracks training progress
 type TrainingMetrics struct {
-	Epoch       int
-	Loss        float64
-	Accuracy    float64
+	Epoch        int
+	Loss         float64
+	Accuracy     float64
 	LearningRate float64
-	Duration    time.Duration
-	SamplesSeen int
+	Duration     time.Duration
+	SamplesSeen  int
 }
 
 // Trainer manages the training process
@@ -244,7 +244,7 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 	}
 
 	batchSize := len(entries)
-	
+
 	// If batch size doesn't match model batch size, pad or truncate
 	if batchSize != t.config.BatchSize {
 		// For the last batch, we can handle it differently
@@ -260,7 +260,7 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 	// Prepare batch tensors
 	inputData := make([]float64, batchSize*12*8*8)
 	targetData := make([]float64, batchSize*4096)
-	
+
 	// Fill batch data
 	for i, entry := range entries {
 		// Convert state tensor
@@ -268,7 +268,7 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to convert entry %d: %w", i, err)
 		}
-		
+
 		// Copy board data to batch input
 		offset := i * 12 * 8 * 8
 		idx := 0
@@ -280,48 +280,48 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 				}
 			}
 		}
-		
+
 		// Create target for this sample
 		targetVec, err := ConvertMoveToTarget(entry.FromSquare, entry.ToSquare)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to create target for entry %d: %w", i, err)
 		}
-		
+
 		// Copy target data to batch targets
 		copy(targetData[i*4096:(i+1)*4096], targetVec)
 	}
-	
+
 	// Create batch tensors
 	inputTensor := tensor.New(
 		tensor.WithShape(batchSize, 12, 8, 8),
 		tensor.WithBacking(inputData),
 	)
-	
+
 	targetTensor := tensor.New(
 		tensor.WithShape(batchSize, 4096),
 		tensor.WithBacking(targetData),
 	)
-	
+
 	// Set input and target
 	if err := gorgonia.Let(t.model.input, inputTensor); err != nil {
 		return 0, 0, fmt.Errorf("failed to set input: %w", err)
 	}
-	
+
 	if err := gorgonia.Let(t.targetNode, targetTensor); err != nil {
 		return 0, 0, fmt.Errorf("failed to set target: %w", err)
 	}
-	
+
 	// Run forward and backward pass
 	if err := t.model.vm.RunAll(); err != nil {
 		return 0, 0, fmt.Errorf("failed to run forward/backward: %w", err)
 	}
-	
+
 	// Get loss value
 	lossValue := t.lossNode.Value()
 	if lossValue == nil {
 		return 0, 0, fmt.Errorf("loss value is nil")
 	}
-	
+
 	// Extract scalar loss value
 	var avgLoss float64
 	switch v := lossValue.Data().(type) {
@@ -336,7 +336,7 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 	default:
 		return 0, 0, fmt.Errorf("unexpected loss value type: %T", v)
 	}
-	
+
 	// Update weights
 	learnables := t.model.Learnables()
 	valueGrads := make([]gorgonia.ValueGrad, len(learnables))
@@ -346,16 +346,16 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 	if err := t.solver.Step(valueGrads); err != nil {
 		return 0, 0, fmt.Errorf("failed to update weights: %w", err)
 	}
-	
+
 	// Reset VM for next batch
 	t.model.vm.Reset()
-	
+
 	// Count correct predictions
 	correctCount := 0
 	outputValue := t.model.output.Value()
 	if outputValue != nil {
 		outputData := outputValue.Data().([]float64)
-		
+
 		for i, entry := range entries {
 			// Get predicted move (argmax of output)
 			maxIdx := 0
@@ -366,7 +366,7 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 					maxIdx = j
 				}
 			}
-			
+
 			// Check if prediction is correct
 			expectedIdx := entry.FromSquare*64 + entry.ToSquare
 			if maxIdx == expectedIdx {
@@ -374,7 +374,7 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 			}
 		}
 	}
-	
+
 	return avgLoss, correctCount, nil
 }
 
@@ -384,16 +384,16 @@ func (t *Trainer) trainBatchSmall(entries []*data.DataEntry) (float64, int, erro
 	batchSize := t.config.BatchSize
 	inputData := make([]float64, batchSize*12*8*8)
 	targetData := make([]float64, batchSize*4096)
-	
+
 	actualSize := len(entries)
-	
+
 	// Fill only the actual entries
 	for i, entry := range entries {
 		boardTensor, err := data.FlatArrayToTensor(entry.StateTensor)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to convert entry %d: %w", i, err)
 		}
-		
+
 		offset := i * 12 * 8 * 8
 		idx := 0
 		for c := 0; c < 12; c++ {
@@ -404,45 +404,45 @@ func (t *Trainer) trainBatchSmall(entries []*data.DataEntry) (float64, int, erro
 				}
 			}
 		}
-		
+
 		targetVec, err := ConvertMoveToTarget(entry.FromSquare, entry.ToSquare)
 		if err != nil {
 			return 0, 0, fmt.Errorf("failed to create target for entry %d: %w", i, err)
 		}
 		copy(targetData[i*4096:(i+1)*4096], targetVec)
 	}
-	
+
 	// Create tensors
 	inputTensor := tensor.New(
 		tensor.WithShape(batchSize, 12, 8, 8),
 		tensor.WithBacking(inputData),
 	)
-	
+
 	targetTensor := tensor.New(
 		tensor.WithShape(batchSize, 4096),
 		tensor.WithBacking(targetData),
 	)
-	
+
 	// Set input and target
 	if err := gorgonia.Let(t.model.input, inputTensor); err != nil {
 		return 0, 0, fmt.Errorf("failed to set input: %w", err)
 	}
-	
+
 	if err := gorgonia.Let(t.targetNode, targetTensor); err != nil {
 		return 0, 0, fmt.Errorf("failed to set target: %w", err)
 	}
-	
+
 	// Run forward and backward pass
 	if err := t.model.vm.RunAll(); err != nil {
 		return 0, 0, fmt.Errorf("failed to run forward/backward: %w", err)
 	}
-	
+
 	// Get loss (only for actual samples)
 	lossValue := t.lossNode.Value()
 	if lossValue == nil {
 		return 0, 0, fmt.Errorf("loss value is nil")
 	}
-	
+
 	// Extract scalar loss value
 	var avgLoss float64
 	switch v := lossValue.Data().(type) {
@@ -457,7 +457,7 @@ func (t *Trainer) trainBatchSmall(entries []*data.DataEntry) (float64, int, erro
 	default:
 		return 0, 0, fmt.Errorf("unexpected loss value type: %T", v)
 	}
-	
+
 	// Update weights
 	learnables := t.model.Learnables()
 	valueGrads := make([]gorgonia.ValueGrad, len(learnables))
@@ -467,16 +467,16 @@ func (t *Trainer) trainBatchSmall(entries []*data.DataEntry) (float64, int, erro
 	if err := t.solver.Step(valueGrads); err != nil {
 		return 0, 0, fmt.Errorf("failed to update weights: %w", err)
 	}
-	
+
 	// Reset VM
 	t.model.vm.Reset()
-	
+
 	// Count correct predictions (only for actual samples)
 	correctCount := 0
 	outputValue := t.model.output.Value()
 	if outputValue != nil {
 		outputData := outputValue.Data().([]float64)
-		
+
 		for i := 0; i < actualSize; i++ {
 			entry := entries[i]
 			maxIdx := 0
@@ -487,14 +487,14 @@ func (t *Trainer) trainBatchSmall(entries []*data.DataEntry) (float64, int, erro
 					maxIdx = j
 				}
 			}
-			
+
 			expectedIdx := entry.FromSquare*64 + entry.ToSquare
 			if maxIdx == expectedIdx {
 				correctCount++
 			}
 		}
 	}
-	
+
 	return avgLoss, correctCount, nil
 }
 

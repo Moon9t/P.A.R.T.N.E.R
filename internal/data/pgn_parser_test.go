@@ -10,7 +10,7 @@ import (
 func TestParsePGN(t *testing.T) {
 	// Test with actual chess package - create a game programmatically
 	game := chess.NewGame()
-	
+
 	// Make some moves
 	if err := game.MoveStr("e4"); err != nil {
 		t.Fatalf("Failed to make move: %v", err)
@@ -21,12 +21,12 @@ func TestParsePGN(t *testing.T) {
 	if err := game.MoveStr("Nf3"); err != nil {
 		t.Fatalf("Failed to make move: %v", err)
 	}
-	
+
 	moves := game.Moves()
 	if len(moves) != 3 {
 		t.Fatalf("Expected 3 moves, got %d", len(moves))
 	}
-	
+
 	// Test that we can use the chess package correctly
 	pos := game.Position()
 	if pos == nil {

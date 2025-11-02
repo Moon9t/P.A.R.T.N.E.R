@@ -87,7 +87,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to create trainer: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	cnnModel := trainer.GetModel()
 	defer cnnModel.Close()
 
@@ -277,7 +277,7 @@ func testInferenceWithCheckpoint(modelPath string, dataset *data.Dataset) {
 		fmt.Printf("%s%d. %c%d → %c%d  (prob: %.4f%%)\n",
 			marker, i+1, fromFile, fromRank, toFile, toRank, pred.Probability*100)
 	}
-	
+
 	fmt.Println()
 	fmt.Println("✓ Inference test completed successfully!")
 }
