@@ -23,6 +23,7 @@ require (
 	github.com/jezek/xgb v1.0.0 // indirect
 	github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
+	github.com/notnil/chess v1.10.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/xtgo/set v1.0.0 // indirect
 	go.etcd.io/bbolt v1.3.8 // indirect

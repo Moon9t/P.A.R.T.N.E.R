@@ -1,0 +1,69 @@
+{
+  "metrics": {
+    "StartTime": "2025-11-02T09:14:16.171513761+02:00",
+    "EndTime": "2025-11-02T09:14:46.173340682+02:00",
+    "TotalDuration": 30001827054,
+    "TotalCaptures": 59,
+    "SuccessfulCaptures": 59,
+    "FailedCaptures": 0,
+    "CaptureLatencySum": 14060526398,
+    "MinCaptureLatency": 203686111,
+    "MaxCaptureLatency": 357175957,
+    "TotalInferences": 59,
+    "InferenceTimeSum": 91374734,
+    "MinInferenceTime": 1160701,
+    "MaxInferenceTime": 2283718,
+    "TotalDecisions": 59,
+    "HighConfDecisions": 0,
+    "MedConfDecisions": 0,
+    "LowConfDecisions": 59,
+    "AvgConfidence": 0.00024681800678158457,
+    "SamplesStored": 11,
+    "StorageWrites": 11,
+    "StorageReads": 0,
+    "StorageErrors": 0,
+    "InitialMemoryMB": 26.891448974609375,
+    "PeakMemoryMB": 30.38819122314453,
+    "FinalMemoryMB": 12.283531188964844,
+    "AvgCPUPercent": 45.88891867839832,
+    "GoroutineCount": 5,
+    "GCCount": 21,
+    "FramesProcessed": 59,
+    "ActualFPS": 1.9811164815602844,
+    "TargetFPS": 2,
+    "FrameDrops": 0
+  },
+  "snapshots": [
+    {
+      "Timestamp": "2025-11-02T09:14:26.390335037+02:00",
+      "ElapsedSeconds": 10.21882116,
+      "CapturesPerSec": 1.9571729152367319,
+      "InferencesPerSec": 1.9571729152367319,
+      "AvgCaptureLatency": 238897500,
+      "AvgInferenceTime": 1499056,
+      "MemoryMB": 17.125816345214844,
+      "CPUPercent": 96.13588894938697,
+      "Goroutines": 5,
+      "ConfidenceAvg": 0.0002468180067815843
+    },
+    {
+      "Timestamp": "2025-11-02T09:14:36.475720347+02:00",
+      "ElapsedSeconds": 20.304206441,
+      "CapturesPerSec": 1.9700351312045643,
+      "InferencesPerSec": 1.9700351312045643,
+      "AvgCaptureLatency": 240359681,
+      "AvgInferenceTime": 1543326,
+      "MemoryMB": 12.135406494140625,
+      "CPUPercent": 74.36138625824029,
+      "Goroutines": 5,
+      "ConfidenceAvg": 0.0002468180067815845
+    }
+  ],
+  "test_info": {
+    "duration": "30.001827054s",
+    "end_time": "2025-11-02T09:14:46.173340682+02:00",
+    "name": "System Integration Test",
+    "start_time": "2025-11-02T09:14:16.171513761+02:00",
+    "version": "1.0.0"
+  }
+}

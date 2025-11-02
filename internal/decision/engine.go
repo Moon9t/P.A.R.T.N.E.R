@@ -597,17 +597,17 @@ type Statistics struct {
 func FormatAdvice(advice *Advice) string {
 	result := fmt.Sprintf("Primary Move: %s\n", advice.PrimaryMove)
 	result += fmt.Sprintf("Confidence: %.1f%%\n", advice.Confidence*100)
-	
+
 	if advice.Explanation != "" {
 		result += fmt.Sprintf("Explanation: %s\n", advice.Explanation)
 	}
-	
+
 	if len(advice.Alternatives) > 0 {
 		result += "\nAlternatives:\n"
 		for i, alt := range advice.Alternatives {
 			result += fmt.Sprintf("  %d. %s\n", i+1, alt)
 		}
 	}
-	
+
 	return result
 }
