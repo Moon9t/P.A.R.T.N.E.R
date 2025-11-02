@@ -494,3 +494,120 @@ func (mf *MoveFormatter) FormatDecision(decision *Decision) string {
 
 	return result
 }
+
+// ============================================================================
+// COMPATIBILITY LAYER - Legacy API support for cmd/partner/main.go
+// ============================================================================
+
+// Prediction represents a simple prediction (legacy compatibility)
+type Prediction struct {
+	Move       string
+	Confidence float64
+	Timestamp  time.Time
+}
+
+// Advisor provides advice with history tracking (legacy compatibility)
+type Advisor struct {
+	engine     *DecisionEngine
+	history    *DecisionHistory
+	lastAdvice *Advice
+	mu         sync.RWMutex
+}
+
+// Advice represents advice with alternatives (legacy compatibility)
+type Advice struct {
+	PrimaryMove  string
+	Alternatives []string
+	Confidence   float64
+	Timestamp    time.Time
+	Explanation  string
+}
+
+// NewEngine creates a basic decision engine (legacy compatibility)
+// This is a wrapper around NewDecisionEngine with default parameters
+func NewEngine(net *model.ChessNet, capturer *vision.Capturer, confidenceThreshold float64) *DecisionEngine {
+	logger, _ := zap.NewProduction()
+	return NewDecisionEngine(net, capturer, confidenceThreshold, 5, logger)
+}
+
+// NewAdvisor creates an advisor with history (legacy compatibility)
+func NewAdvisor(engine *DecisionEngine, historySize int) *Advisor {
+	return &Advisor{
+		engine:  engine,
+		history: NewDecisionHistory(historySize),
+	}
+}
+
+// GetAdvice returns advice based on current board state (legacy compatibility)
+func (a *Advisor) GetAdvice() (*Advice, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	decision, err := a.engine.MakeDecision()
+	if err != nil {
+		return nil, err
+	}
+
+	// Store in history
+	a.history.Add(decision)
+
+	// Build alternatives list
+	alternatives := make([]string, 0, len(decision.Alternatives))
+	for _, alt := range decision.Alternatives {
+		if len(alternatives) >= 3 {
+			break
+		}
+		alternatives = append(alternatives, alt.Move)
+	}
+
+	advice := &Advice{
+		PrimaryMove:  decision.TopMove.Move,
+		Alternatives: alternatives,
+		Confidence:   decision.TopMove.Confidence,
+		Timestamp:    decision.Timestamp,
+		Explanation:  decision.TopMove.Explanation,
+	}
+
+	a.lastAdvice = advice
+	return advice, nil
+}
+
+// GetLastAdvice returns the most recent advice (legacy compatibility)
+func (a *Advisor) GetLastAdvice() *Advice {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.lastAdvice
+}
+
+// GetHistory returns the decision history (legacy compatibility)
+func (a *Advisor) GetHistory() *DecisionHistory {
+	return a.history
+}
+
+// Statistics represents system statistics (legacy compatibility)
+type Statistics struct {
+	TotalPredictions   int
+	AverageConfidence  float64
+	SuccessfulCaptures int
+	FailedCaptures     int
+	AverageInferenceMs float64
+}
+
+// FormatAdvice formats advice for display (legacy compatibility)
+func FormatAdvice(advice *Advice) string {
+	result := fmt.Sprintf("Primary Move: %s\n", advice.PrimaryMove)
+	result += fmt.Sprintf("Confidence: %.1f%%\n", advice.Confidence*100)
+	
+	if advice.Explanation != "" {
+		result += fmt.Sprintf("Explanation: %s\n", advice.Explanation)
+	}
+	
+	if len(advice.Alternatives) > 0 {
+		result += "\nAlternatives:\n"
+		for i, alt := range advice.Alternatives {
+			result += fmt.Sprintf("  %d. %s\n", i+1, alt)
+		}
+	}
+	
+	return result
+}
