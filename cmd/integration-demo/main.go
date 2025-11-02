@@ -1,5 +1,4 @@
 package main
-package main
 
 import (
 	"fmt"
@@ -18,7 +17,7 @@ func main() {
 	// Create a starting position
 	fmt.Println("🔧 Step 1: Creating test board (starting position)")
 	tensor := createStartingPosition()
-	
+
 	// Validate
 	fmt.Println("🔍 Step 2: Validating board state")
 	if err := vision.ValidateBoardTensor(tensor); err != nil {
@@ -189,16 +188,16 @@ func createStartingPosition() [12][8][8]float32 {
 	}
 
 	// Rooks
-	tensor[9][7][0] = 1.0  // a8
-	tensor[9][7][7] = 1.0  // h8
+	tensor[9][7][0] = 1.0 // a8
+	tensor[9][7][7] = 1.0 // h8
 
 	// Knights
-	tensor[7][7][1] = 1.0  // b8
-	tensor[7][7][6] = 1.0  // g8
+	tensor[7][7][1] = 1.0 // b8
+	tensor[7][7][6] = 1.0 // g8
 
 	// Bishops
-	tensor[8][7][2] = 1.0  // c8
-	tensor[8][7][5] = 1.0  // f8
+	tensor[8][7][2] = 1.0 // c8
+	tensor[8][7][5] = 1.0 // f8
 
 	// Queen
 	tensor[10][7][3] = 1.0 // d8

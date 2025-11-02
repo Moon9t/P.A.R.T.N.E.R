@@ -1,5 +1,4 @@
 package training
-package training
 
 import (
 	"encoding/json"
@@ -33,12 +32,7 @@ type ReplayEntry struct {
 	TopKRank    int     `json:"top_k_rank,omitempty"` // Rank of actual move in predictions
 }
 
-// Move represents a chess move
-type Move struct {
-	FromSquare int    `json:"from_square"` // 0-63
-	ToSquare   int    `json:"to_square"`   // 0-63
-	Notation   string `json:"notation"`    // e.g., "e2e4"
-}
+// Note: Move struct is defined in inference.go
 
 // ReplayBuffer manages the collection of replay entries
 type ReplayBuffer struct {

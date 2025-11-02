@@ -1,5 +1,4 @@
 package main
-package main
 
 import (
 	"fmt"
@@ -11,7 +10,8 @@ import (
 func main() {
 	// Test the vision pipeline with a synthetic board
 	fmt.Println("Testing P.A.R.T.N.E.R Vision Module")
-	fmt.Println("===================================\n")
+	fmt.Println("===================================")
+	fmt.Println()
 
 	// Create a synthetic board state tensor (starting position)
 	var tensor [12][8][8]float32
@@ -47,16 +47,16 @@ func main() {
 	}
 
 	// Black rooks
-	tensor[9][7][0] = 1.0  // a8
-	tensor[9][7][7] = 1.0  // h8
+	tensor[9][7][0] = 1.0 // a8
+	tensor[9][7][7] = 1.0 // h8
 
 	// Black knights
-	tensor[7][7][1] = 1.0  // b8
-	tensor[7][7][6] = 1.0  // g8
+	tensor[7][7][1] = 1.0 // b8
+	tensor[7][7][6] = 1.0 // g8
 
 	// Black bishops
-	tensor[8][7][2] = 1.0  // c8
-	tensor[8][7][5] = 1.0  // f8
+	tensor[8][7][2] = 1.0 // c8
+	tensor[8][7][5] = 1.0 // f8
 
 	// Black queen
 	tensor[10][7][3] = 1.0 // d8

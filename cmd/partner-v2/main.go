@@ -207,7 +207,8 @@ func runAssistMode(
 	for {
 		select {
 		case <-sigChan:
-			fmt.Println("\n")
+			fmt.Println()
+			fmt.Println()
 			cli.PrintStatus("Received shutdown signal", "info")
 			goto shutdown
 

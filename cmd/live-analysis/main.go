@@ -144,7 +144,9 @@ func analyzeVideo(videoPath string, config *vision.Config, cnn *model.ChessCNN, 
 	}
 	defer pipeline.Stop()
 
-	fmt.Println("\n🎯 Processing video (Ctrl+C to stop)...\n")
+	fmt.Println()
+	fmt.Println("🎯 Processing video (Ctrl+C to stop)...")
+	fmt.Println()
 
 	// Setup signal handling
 	sigChan := make(chan os.Signal, 1)
@@ -228,8 +230,11 @@ func analyzeLive(config *vision.Config, cnn *model.ChessCNN, topK int, verbose b
 	}
 	defer pipeline.Stop()
 
-	fmt.Println("\n🎯 Watching for moves (Ctrl+C to stop)...\n")
-	fmt.Println("Make a move on the chessboard to see suggestions!\n")
+	fmt.Println()
+	fmt.Println("🎯 Watching for moves (Ctrl+C to stop)...")
+	fmt.Println()
+	fmt.Println("Make a move on the chessboard to see suggestions!")
+	fmt.Println()
 
 	// Setup signal handling
 	sigChan := make(chan os.Signal, 1)

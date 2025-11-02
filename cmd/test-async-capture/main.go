@@ -118,9 +118,11 @@ func main() {
 	)
 
 	logger.Info("System ready, starting test...")
-	fmt.Println("\n╔══════════════════════════════════════════════════════════════╗")
+	fmt.Println()
+	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
 	fmt.Println("║  ASYNC CAPTURE PERFORMANCE TEST                              ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════╝\n")
+	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	fmt.Println()
 
 	// Run test
 	ctx, cancel := context.WithTimeout(context.Background(), *duration)
@@ -216,7 +218,8 @@ func printIntermediateStats(engine *decision.AsyncDecisionEngine, startTime time
 	fmt.Printf("Last Capture:      %d ms\n", captureStats.LastCaptureMs)
 	fmt.Printf("Avg Capture:       %.2f ms\n", captureStats.AvgCaptureMs)
 	fmt.Printf("Target FPS:        %d\n", captureStats.TargetFPS)
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
 }
 
 func printFinalStats(engine *decision.AsyncDecisionEngine, capturer *vision.AsyncCapturer, duration time.Duration) {
@@ -233,9 +236,11 @@ func printFinalStats(engine *decision.AsyncDecisionEngine, capturer *vision.Asyn
 	baselineFPS := 1000.0 / 238.0 // ~4.2 FPS
 	improvement := (actualFPS / baselineFPS) * 100.0
 
-	fmt.Println("\n╔══════════════════════════════════════════════════════════════╗")
+	fmt.Println()
+	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
 	fmt.Println("║  FINAL PERFORMANCE REPORT                                    ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════╝\n")
+	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	fmt.Println()
 
 	fmt.Println("📊 DECISION ENGINE PERFORMANCE")
 	fmt.Println("─────────────────────────────────────────────────────────────")
@@ -294,7 +299,9 @@ func printFinalStats(engine *decision.AsyncDecisionEngine, capturer *vision.Asyn
 		fmt.Println("Reliability: ❌ Poor - Investigate capture issues")
 	}
 
-	fmt.Println("\n╔══════════════════════════════════════════════════════════════╗")
+	fmt.Println()
+	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
 	fmt.Println("║  ASYNC CAPTURE OPTIMIZATION: SUCCESS! ✅                     ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════╝\n")
+	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	fmt.Println()
 }
