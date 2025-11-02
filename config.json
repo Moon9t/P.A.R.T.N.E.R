@@ -1,0 +1,33 @@
+{
+  "vision": {
+    "screen_region": {
+      "x": 100,
+      "y": 100,
+      "width": 640,
+      "height": 640
+    },
+    "capture_fps": 2,
+    "board_size": 8,
+    "diff_threshold": 15.0
+  },
+  "model": {
+    "input_size": 64,
+    "hidden_size": 256,
+    "output_size": 4096,
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "model_path": "data/model.bin"
+  },
+  "training": {
+    "replay_buffer_size": 10000,
+    "db_path": "data/replay.db",
+    "save_interval": 100,
+    "min_samples_before_training": 50
+  },
+  "interface": {
+    "log_level": "info",
+    "log_path": "logs/partner.log",
+    "enable_tts": false,
+    "confidence_threshold": 0.3
+  }
+}
