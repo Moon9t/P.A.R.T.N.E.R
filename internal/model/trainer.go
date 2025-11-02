@@ -53,6 +53,7 @@ type Trainer struct {
 	model      *ChessCNN
 	config     *TrainingConfig
 	solver     gorgonia.Solver
+	scheduler  LRScheduler
 	metrics    []TrainingMetrics
 	targetNode *gorgonia.Node
 	lossNode   *gorgonia.Node
@@ -100,10 +101,21 @@ func NewTrainer(config *TrainingConfig) (*Trainer, error) {
 	model.vm.Close()
 	model.vm = gorgonia.NewTapeMachine(model.g)
 
+	// Create learning rate scheduler
+	// Estimate total steps: epochs * (samples / batch_size)
+	// We'll update this dynamically during training
+	scheduler := NewCosineAnnealingScheduler(
+		config.LearningRate,    // base LR
+		config.LearningRate*0.01, // min LR (1% of base)
+		100,                     // warmup steps
+		1000,                    // total steps (will be updated)
+	)
+
 	return &Trainer{
 		model:      model,
 		config:     config,
 		solver:     solver,
+		scheduler:  scheduler,
 		metrics:    make([]TrainingMetrics, 0),
 		targetNode: targetNode,
 		lossNode:   lossNode,
@@ -137,18 +149,13 @@ func (t *Trainer) Train(dataset *data.Dataset) error {
 	for epoch := 0; epoch < t.config.Epochs; epoch++ {
 		startTime := time.Now()
 
-		// Apply learning rate decay
-		if epoch > 0 && epoch%t.config.LRDecaySteps == 0 {
-			newLR := t.config.LearningRate * math.Pow(t.config.LRDecayRate, float64(epoch/t.config.LRDecaySteps))
-			t.solver = gorgonia.NewAdamSolver(
-				gorgonia.WithLearnRate(newLR),
-				gorgonia.WithBatchSize(float64(t.config.BatchSize)),
-				gorgonia.WithClip(t.config.GradientClipMax),
-			)
-			if t.config.Verbose {
-				fmt.Printf("Learning rate decayed to: %.6f\n", newLR)
-			}
-		}
+		// Update learning rate using scheduler
+		currentLR := t.scheduler.GetCurrentLR()
+		t.solver = gorgonia.NewAdamSolver(
+			gorgonia.WithLearnRate(currentLR),
+			gorgonia.WithBatchSize(float64(t.config.BatchSize)),
+			gorgonia.WithClip(t.config.GradientClipMax),
+		)
 
 		// Train one epoch
 		epochLoss, accuracy, samplesSeen, err := t.trainEpoch(dataset, totalSamples)
@@ -158,12 +165,15 @@ func (t *Trainer) Train(dataset *data.Dataset) error {
 
 		duration := time.Since(startTime)
 
+		// Step the scheduler
+		t.scheduler.Step()
+
 		// Record metrics
 		metrics := TrainingMetrics{
 			Epoch:        epoch + 1,
 			Loss:         epochLoss,
 			Accuracy:     accuracy,
-			LearningRate: t.config.LearningRate,
+			LearningRate: currentLR,
 			Duration:     duration,
 			SamplesSeen:  samplesSeen,
 		}
@@ -207,6 +217,9 @@ func (t *Trainer) trainEpoch(dataset *data.Dataset, totalSamples int) (float64, 
 	correctPredictions := 0
 	samplesSeen := 0
 
+	// Configure augmentation
+	augConfig := data.DefaultAugmentationConfig()
+
 	for batchIdx := 0; batchIdx < numBatches; batchIdx++ {
 		offset := batchIdx * batchSize
 
@@ -219,6 +232,9 @@ func (t *Trainer) trainEpoch(dataset *data.Dataset, totalSamples int) (float64, 
 		if len(entries) == 0 {
 			break
 		}
+
+		// Apply data augmentation
+		entries = data.AugmentBatch(entries, augConfig)
 
 		// Train on batch
 		batchLoss, batchCorrect, err := t.trainBatch(entries)
