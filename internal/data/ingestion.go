@@ -95,10 +95,18 @@ func (ing *Ingestor) Ingest() (*IngestionStats, error) {
 		positions, err := ExtractPositions(game)
 		if err != nil {
 			if ing.config.SkipInvalid {
+				if ing.config.Verbose {
+					fmt.Printf("Skipping game %d: %v\n", gameIdx, err)
+				}
 				atomic.AddInt32(&stats.SkippedPositions, 1)
 				return nil
 			}
 			return fmt.Errorf("failed to extract positions from game %d: %w", gameIdx, err)
+		}
+
+		if len(positions) == 0 {
+			// Skip empty games
+			return nil
 		}
 
 		for moveNum, pos := range positions {

@@ -1,0 +1,26 @@
+[Event "Test Game 1"]
+[Site "Test"]
+[Date "2024.01.01"]
+[White "Player A"]
+[Black "Player B"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 O-O 8. c3 d6 9. h3 Na5 10. Bc2 c5 11. d4 Qc7 1-0
+
+[Event "Test Game 2"]
+[Site "Test"]
+[Date "2024.01.02"]
+[White "Player C"]
+[Black "Player D"]
+[Result "0-1"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Bg5 Be7 5. e3 O-O 6. Nf3 h6 7. Bh4 b6 8. cxd5 Nxd5 9. Bxe7 Qxe7 10. Nxd5 exd5 0-1
+
+[Event "Test Game 3"]
+[Site "Test"]
+[Date "2024.01.03"]
+[White "Player E"]
+[Black "Player F"]
+[Result "1/2-1/2"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. Be2 e5 7. Nb3 Be7 8. O-O O-O 9. f4 Qc7 10. Kh1 Nc6 1/2-1/2

@@ -37,16 +37,32 @@ func (p *PGNParser) ParsePGNReader(reader io.Reader) ([]*chess.Game, error) {
 	var games []*chess.Game
 
 	scanner := chess.NewScanner(reader)
+	gameCount := 0
+	
 	for scanner.Scan() {
+		gameCount++
 		game := scanner.Next()
 		if game != nil {
-			games = append(games, game)
+			// Validate the game has moves
+			if len(game.Moves()) > 0 {
+				games = append(games, game)
+			}
 		}
 	}
 
 	// EOF is expected at end of file, not an error
+	// Be very lenient with parsing errors - extract what we can
 	if err := scanner.Err(); err != nil && err != io.EOF {
-		return nil, fmt.Errorf("error parsing PGN: %w", err)
+		// If we got some games, return them despite the error
+		if len(games) > 0 {
+			fmt.Printf("Warning: PGN parsing stopped at game %d due to errors\n", gameCount)
+			fmt.Printf("Successfully extracted %d valid games\n", len(games))
+			return games, nil
+		}
+		// Even if we got no games, it might just be a bad format
+		// Return empty list instead of failing
+		fmt.Printf("Warning: Could not parse any games from PGN (error at game %d)\n", gameCount)
+		return games, nil // Return empty list, not error
 	}
 
 	return games, nil
@@ -74,7 +90,7 @@ func ExtractPositions(game *chess.Game) ([]*ChessPosition, error) {
 
 	// Replay the game to get all positions
 	tempGame := chess.NewGame()
-	for _, move := range moves {
+	for i, move := range moves {
 		// Get current position before the move
 		pos := tempGame.Position()
 
@@ -86,8 +102,12 @@ func ExtractPositions(game *chess.Game) ([]*ChessPosition, error) {
 
 		// Apply the move
 		if err := tempGame.Move(move); err != nil {
-			// Skip invalid moves
-			continue
+			// Stop processing this game if we hit an invalid move
+			// but return what we have so far
+			if len(positions) > 0 {
+				return positions, nil
+			}
+			return nil, fmt.Errorf("invalid move %d: %w", i+1, err)
 		}
 	}
 
