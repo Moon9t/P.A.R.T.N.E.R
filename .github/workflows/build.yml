@@ -7,8 +7,12 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.25'
+  GO_VERSION: '1.21'
   ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH: go1.25
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
   build:
@@ -65,8 +69,8 @@ jobs:
         # Create test directories
         mkdir -p data/models data/replays logs
         
-        # Run integration test
-        timeout 300 ./scripts/integration-test.sh || echo "Integration tests completed with warnings"
+        # Run integration test (allow to continue on timeout)
+        timeout 300 ./scripts/integration-test.sh || true
 
     - name: Check for compilation errors
       run: |
