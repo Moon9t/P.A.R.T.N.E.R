@@ -118,7 +118,7 @@ func run(p *vision.Pipeline, cnn *model.ChessCNN, ch <-chan vision.BoardStateTen
 
 			preds, err := cnn.Predict(t.Tensor, topK)
 			if err != nil {
-				log.Printf("❌ Prediction failed: %v", err)
+				log.Printf("Prediction failed: %v", err)
 				continue
 			}
 

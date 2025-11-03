@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -406,6 +408,16 @@ func (s *ObservationStore) ExportToJSON(outputPath string) error {
 		return fmt.Errorf("failed to marshal samples: %w", err)
 	}
 
-	// Write to file (using os package would be imported here)
-	return fmt.Errorf("export not yet implemented - would write %d bytes to %s", len(data), outputPath)
+	// Ensure output directory exists
+	outputDir := filepath.Dir(outputPath)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write export file: %w", err)
+	}
+
+	return nil
 }

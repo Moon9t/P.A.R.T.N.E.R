@@ -62,7 +62,7 @@ jobs:
     steps:
     - name: Send status summary
       run: |
-        echo "📊 Workflow Status Report"
+        echo "Workflow Status Report"
         echo "========================="
         echo "Event: ${{ github.event_name }}"
         echo "Ref: ${{ github.ref }}"
@@ -70,7 +70,7 @@ jobs:
         echo "SHA: ${{ github.sha }}"
         
         if [[ "${{ needs.monitor.result }}" == "failure" ]]; then
-          echo "❌ Build failed - Issue created"
+          echo "Build failed - Issue created"
         else
           echo "✅ Build successful"
         fi

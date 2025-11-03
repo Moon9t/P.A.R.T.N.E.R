@@ -257,7 +257,7 @@ func analyzeLive(config *vision.Config, cnn *model.ChessCNN, topK int, verbose b
 				lastPredictionTime = time.Now()
 
 				fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-				fmt.Printf("🔄 Move detected! (Position %d)\n", positionCount)
+				fmt.Printf("Move detected! (Position %d)\n", positionCount)
 				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 
 				if verbose {
@@ -275,7 +275,7 @@ func analyzeLive(config *vision.Config, cnn *model.ChessCNN, topK int, verbose b
 				fmt.Println("🤔 Analyzing position...")
 				predictions, err := predictMoves(cnn, tensorData.Tensor, topK)
 				if err != nil {
-					log.Printf("❌ Prediction failed: %v", err)
+					log.Printf("Prediction failed: %v", err)
 					continue
 				}
 
@@ -291,7 +291,7 @@ func analyzeLive(config *vision.Config, cnn *model.ChessCNN, topK int, verbose b
 		case <-sigChan:
 			fmt.Println("\n\n⏸️  Stopping analysis...")
 			stats := pipeline.GetStats()
-			fmt.Printf("\n📊 Session Statistics:\n")
+			fmt.Printf("\nSession Statistics:\n")
 			fmt.Printf("  Frames processed: %d\n", stats.FramesProcessed)
 			fmt.Printf("  Positions analyzed: %d\n", positionCount)
 			fmt.Printf("  Average frame time: %v\n", stats.AverageFrameTime)

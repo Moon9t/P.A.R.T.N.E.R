@@ -204,7 +204,7 @@
   - Bug reports
   - Feature requests
 
-## 📊 Success Metrics
+## Success Metrics
 
 ### Model Performance
 - **Accuracy**: Target >60% on standard positions

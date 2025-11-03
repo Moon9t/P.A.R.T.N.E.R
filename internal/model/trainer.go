@@ -12,24 +12,24 @@ import (
 
 // TrainingConfig holds training hyperparameters
 type TrainingConfig struct {
-	Epochs             int
-	BatchSize          int
-	LearningRate       float64
-	LRDecayRate        float64 // Learning rate decay per epoch
-	LRDecaySteps       int     // Decay every N epochs
-	GradientClipMax    float64
-	Verbose            bool
-	SaveInterval       int    // Save model every N epochs
-	SavePath           string
-	
+	Epochs          int
+	BatchSize       int
+	LearningRate    float64
+	LRDecayRate     float64 // Learning rate decay per epoch
+	LRDecaySteps    int     // Decay every N epochs
+	GradientClipMax float64
+	Verbose         bool
+	SaveInterval    int // Save model every N epochs
+	SavePath        string
+
 	// Advanced options
-	ValidationSplit    float64 // Fraction of data for validation (0.0-1.0)
-	GradAccumSteps     int     // Accumulate gradients over N batches (effective batch size = BatchSize * GradAccumSteps)
-	EarlyStopPatience  int     // Stop if no improvement for N epochs (0 = disabled)
-	NumWorkers         int     // Number of parallel data loaders (0 = sequential)
-	ShuffleBatches     bool    // Shuffle batches each epoch
-	WeightDecay        float64 // L2 regularization strength
-	WarmupEpochs       int     // Linear warmup for this many epochs
+	ValidationSplit   float64 // Fraction of data for validation (0.0-1.0)
+	GradAccumSteps    int     // Accumulate gradients over N batches (effective batch size = BatchSize * GradAccumSteps)
+	EarlyStopPatience int     // Stop if no improvement for N epochs (0 = disabled)
+	NumWorkers        int     // Number of parallel data loaders (0 = sequential)
+	ShuffleBatches    bool    // Shuffle batches each epoch
+	WeightDecay       float64 // L2 regularization strength
+	WarmupEpochs      int     // Linear warmup for this many epochs
 }
 
 // DefaultTrainingConfig returns default training configuration
@@ -44,13 +44,13 @@ func DefaultTrainingConfig() *TrainingConfig {
 		Verbose:           true,
 		SaveInterval:      5,
 		SavePath:          "models/chess_cnn.gob",
-		ValidationSplit:   0.15,        // 15% validation
-		GradAccumSteps:    1,           // No accumulation by default
-		EarlyStopPatience: 0,           // Disabled by default
-		NumWorkers:        0,           // Sequential loading
-		ShuffleBatches:    true,        // Shuffle enabled
-		WeightDecay:       0.0001,      // Small L2 regularization
-		WarmupEpochs:      0,           // No warmup by default
+		ValidationSplit:   0.15,   // 15% validation
+		GradAccumSteps:    1,      // No accumulation by default
+		EarlyStopPatience: 0,      // Disabled by default
+		NumWorkers:        0,      // Sequential loading
+		ShuffleBatches:    true,   // Shuffle enabled
+		WeightDecay:       0.0001, // Small L2 regularization
+		WarmupEpochs:      0,      // No warmup by default
 	}
 }
 
@@ -73,14 +73,14 @@ type Trainer struct {
 	metrics    []TrainingMetrics
 	targetNode *gorgonia.Node
 	lossNode   *gorgonia.Node
-	
+
 	// Optimization state
-	inputBuffer  []float64      // Reusable input buffer
-	targetBuffer []float64      // Reusable target buffer
-	bestValLoss  float64        // Best validation loss for early stopping
-	patienceLeft int            // Epochs left before early stopping
-	accumStep    int            // Current gradient accumulation step
-	
+	inputBuffer  []float64 // Reusable input buffer
+	targetBuffer []float64 // Reusable target buffer
+	bestValLoss  float64   // Best validation loss for early stopping
+	patienceLeft int       // Epochs left before early stopping
+	accumStep    int       // Current gradient accumulation step
+
 	// Training/validation split indices
 	trainIndices []int
 	valIndices   []int
@@ -141,7 +141,7 @@ func NewTrainer(config *TrainingConfig) (*Trainer, error) {
 	// Pre-allocate buffers for efficiency
 	inputBuffer := make([]float64, config.BatchSize*12*8*8)
 	targetBuffer := make([]float64, config.BatchSize*4096)
-	
+
 	return &Trainer{
 		model:        model,
 		config:       config,
@@ -185,10 +185,10 @@ func (t *Trainer) Train(dataset *data.Dataset) error {
 	if err := t.splitTrainVal(totalSamples); err != nil {
 		return fmt.Errorf("failed to split train/val: %w", err)
 	}
-	
+
 	trainSamples := len(t.trainIndices)
 	valSamples := len(t.valIndices)
-	
+
 	if t.config.Verbose {
 		fmt.Printf("Train/Val split: %d / %d samples\n", trainSamples, valSamples)
 	}
@@ -244,11 +244,11 @@ func (t *Trainer) Train(dataset *data.Dataset) error {
 			samplesPerSec := float64(samplesSeen) / duration.Seconds()
 			fmt.Printf("Epoch %3d/%d - Loss: %.4f - Acc: %.2f%% - LR: %.6f - %.1f samples/s",
 				epoch+1, t.config.Epochs, epochLoss, accuracy*100, currentLR, samplesPerSec)
-			
+
 			if valSamples > 0 {
 				fmt.Printf(" - Val Loss: %.4f - Val Acc: %.2f%%", valLoss, valAcc*100)
 			}
-			
+
 			fmt.Printf(" - %v\n", duration)
 		}
 
@@ -301,7 +301,7 @@ func (t *Trainer) splitTrainVal(totalSamples int) error {
 	for i := range allIndices {
 		allIndices[i] = i
 	}
-	
+
 	// Shuffle if enabled
 	if t.config.ShuffleBatches {
 		for i := len(allIndices) - 1; i > 0; i-- {
@@ -309,7 +309,7 @@ func (t *Trainer) splitTrainVal(totalSamples int) error {
 			allIndices[i], allIndices[j] = allIndices[j], allIndices[i]
 		}
 	}
-	
+
 	// Split
 	valSize := int(float64(totalSamples) * t.config.ValidationSplit)
 	if valSize > 0 {
@@ -319,20 +319,20 @@ func (t *Trainer) splitTrainVal(totalSamples int) error {
 		t.trainIndices = allIndices
 		t.valIndices = nil
 	}
-	
+
 	return nil
 }
 
 // getLearningRate returns current LR with warmup
 func (t *Trainer) getLearningRate(epoch int) float64 {
 	lr := t.scheduler.GetCurrentLR()
-	
+
 	// Apply warmup
 	if t.config.WarmupEpochs > 0 && epoch < t.config.WarmupEpochs {
 		warmupProgress := float64(epoch+1) / float64(t.config.WarmupEpochs)
 		lr = lr * warmupProgress
 	}
-	
+
 	return lr
 }
 
@@ -341,23 +341,23 @@ func (t *Trainer) validateEpoch(dataset *data.Dataset) (float64, float64, error)
 	if len(t.valIndices) == 0 {
 		return 0, 0, nil
 	}
-	
+
 	batchSize := t.config.BatchSize
 	numBatches := (len(t.valIndices) + batchSize - 1) / batchSize
-	
+
 	totalLoss := 0.0
 	correctPredictions := 0
 	samplesSeen := 0
-	
+
 	for batchIdx := 0; batchIdx < numBatches; batchIdx++ {
 		startIdx := batchIdx * batchSize
 		endIdx := startIdx + batchSize
 		if endIdx > len(t.valIndices) {
 			endIdx = len(t.valIndices)
 		}
-		
+
 		batchIndices := t.valIndices[startIdx:endIdx]
-		
+
 		// Load validation batch
 		entries := make([]*data.DataEntry, 0, len(batchIndices))
 		for _, idx := range batchIndices {
@@ -366,29 +366,29 @@ func (t *Trainer) validateEpoch(dataset *data.Dataset) (float64, float64, error)
 				entries = append(entries, entry[0])
 			}
 		}
-		
+
 		if len(entries) == 0 {
 			continue
 		}
-		
+
 		// Evaluate without augmentation
 		batchLoss, batchCorrect, err := t.evalBatch(entries)
 		if err != nil {
 			continue // Skip failed batches in validation
 		}
-		
+
 		totalLoss += batchLoss
 		correctPredictions += batchCorrect
 		samplesSeen += len(entries)
 	}
-	
+
 	if samplesSeen == 0 {
 		return 0, 0, fmt.Errorf("no validation samples processed")
 	}
-	
+
 	avgLoss := totalLoss / float64(numBatches)
 	accuracy := float64(correctPredictions) / float64(samplesSeen)
-	
+
 	return avgLoss, accuracy, nil
 }
 
@@ -404,7 +404,7 @@ func (t *Trainer) trainEpoch(dataset *data.Dataset, totalSamples int) (float64, 
 
 	// Configure augmentation
 	augConfig := data.DefaultAugmentationConfig()
-	
+
 	// Shuffle training indices each epoch
 	if t.config.ShuffleBatches {
 		for i := len(t.trainIndices) - 1; i > 0; i-- {
@@ -419,9 +419,9 @@ func (t *Trainer) trainEpoch(dataset *data.Dataset, totalSamples int) (float64, 
 		if endIdx > len(t.trainIndices) {
 			endIdx = len(t.trainIndices)
 		}
-		
+
 		batchIndices := t.trainIndices[startIdx:endIdx]
-		
+
 		// Load batch from dataset using indices
 		entries := make([]*data.DataEntry, 0, len(batchIndices))
 		for _, idx := range batchIndices {
@@ -484,7 +484,7 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 	// Use pre-allocated buffers for efficiency
 	inputData := t.inputBuffer[:batchSize*12*8*8]
 	targetData := t.targetBuffer[:batchSize*4096]
-	
+
 	// Clear buffers (only necessary portions)
 	for i := range inputData {
 		inputData[i] = 0
@@ -628,7 +628,7 @@ func (t *Trainer) evalBatch(entries []*data.DataEntry) (float64, int, error) {
 	// Use pre-allocated buffers
 	inputData := t.inputBuffer[:batchSize*12*8*8]
 	targetData := t.targetBuffer[:batchSize*4096]
-	
+
 	// Clear buffers
 	for i := range inputData {
 		inputData[i] = 0
@@ -733,10 +733,10 @@ func (t *Trainer) evalBatchSmall(entries []*data.DataEntry) (float64, int, error
 	// Similar to evalBatch but with padding
 	batchSize := t.config.BatchSize
 	actualSize := len(entries)
-	
+
 	inputData := t.inputBuffer
 	targetData := t.targetBuffer
-	
+
 	// Clear all
 	for i := range inputData {
 		inputData[i] = 0
@@ -744,7 +744,7 @@ func (t *Trainer) evalBatchSmall(entries []*data.DataEntry) (float64, int, error
 	for i := range targetData {
 		targetData[i] = 0
 	}
-	
+
 	// Fill only actual entries
 	for i := 0; i < actualSize; i++ {
 		entry := entries[i]
@@ -770,7 +770,7 @@ func (t *Trainer) evalBatchSmall(entries []*data.DataEntry) (float64, int, error
 		}
 		copy(targetData[i*4096:(i+1)*4096], targetVec)
 	}
-	
+
 	inputTensor := tensor.New(
 		tensor.WithShape(batchSize, 12, 8, 8),
 		tensor.WithBacking(inputData),

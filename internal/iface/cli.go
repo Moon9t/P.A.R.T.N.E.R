@@ -70,7 +70,7 @@ Training model with dataset. This may take several minutes.
 `
 	case "analyze":
 		header = `
-📊 ANALYZE MODE
+ANALYZE MODE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Running accuracy analysis on test dataset.
 `
@@ -180,7 +180,7 @@ func (c *CLI) PrintTrainingStats(epoch, totalEpochs int, loss, accuracy float64,
 		return
 	}
 
-	fmt.Printf("\n📊 Epoch %d/%d\n", epoch, totalEpochs)
+	fmt.Printf("\nEpoch %d/%d\n", epoch, totalEpochs)
 	fmt.Printf("   Loss:     %.4f\n", loss)
 	fmt.Printf("   Accuracy: %.2f%%\n", accuracy)
 	fmt.Printf("   Time:     %s\n", elapsed)
@@ -199,7 +199,7 @@ func (c *CLI) PrintAnalysisResults(totalMoves, correct int, topKAccuracy map[int
 	}
 
 	fmt.Println("\n" + strings.Repeat("━", 70))
-	fmt.Println("📊 ANALYSIS RESULTS")
+	fmt.Println("ANALYSIS RESULTS")
 	fmt.Println(strings.Repeat("━", 70))
 	fmt.Println()
 	fmt.Printf("Total Positions:  %d\n", totalMoves)
@@ -237,7 +237,7 @@ func (c *CLI) PrintAnalysisResults(totalMoves, correct int, topKAccuracy map[int
 
 // PrintError prints an error message
 func (c *CLI) PrintError(err error) {
-	fmt.Fprintf(os.Stderr, "❌ Error: %v\n", err)
+	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 }
 
 // PrintWarning prints a warning message
@@ -298,7 +298,297 @@ func (c *CLI) ClearScreen() {
 	if c.quiet {
 		return
 	}
-	fmt.Print("\033[H\033[2J")
+	fmt.Print("\033[2J\033[H") // ANSI escape code to clear screen
+}
+
+// ===== ENHANCED FORMATTING HELPERS =====
+
+// Color codes for terminal output
+const (
+	ColorReset   = "\033[0m"
+	ColorRed     = "\033[31m"
+	ColorGreen   = "\033[32m"
+	ColorYellow  = "\033[33m"
+	ColorBlue    = "\033[34m"
+	ColorMagenta = "\033[35m"
+	ColorCyan    = "\033[36m"
+	ColorWhite   = "\033[37m"
+	ColorBold    = "\033[1m"
+	ColorDim     = "\033[2m"
+)
+
+// Colorize applies color to text if terminal supports it
+func (c *CLI) Colorize(text string, color string) string {
+	if c.quiet || os.Getenv("NO_COLOR") != "" {
+		return text
+	}
+	return color + text + ColorReset
+}
+
+// PrintSuccess prints a success message in green
+func (c *CLI) PrintSuccess(message string) {
+	if !c.quiet {
+		fmt.Println(c.Colorize("✓ "+message, ColorGreen))
+	}
+}
+
+// PrintInfo prints an info message in blue
+func (c *CLI) PrintInfo(message string) {
+	if !c.quiet {
+		fmt.Println(c.Colorize("ℹ "+message, ColorBlue))
+	}
+}
+
+// PrintProgressBar displays a progress bar
+func (c *CLI) PrintProgressBar(current, total int, label string) {
+	if c.quiet || total == 0 {
+		return
+	}
+
+	width := 40
+	percentage := float64(current) / float64(total)
+	filled := int(percentage * float64(width))
+
+	bar := "["
+	for i := 0; i < width; i++ {
+		if i < filled {
+			bar += "█"
+		} else {
+			bar += "░"
+		}
+	}
+	bar += "]"
+
+	fmt.Printf("\r%s %s %d/%d (%.1f%%) ", label, bar, current, total, percentage*100)
+	if current == total {
+		fmt.Println() // New line when complete
+	}
+}
+
+// PrintTable prints data in a formatted table
+func (c *CLI) PrintTable(headers []string, rows [][]string) {
+	if c.quiet {
+		return
+	}
+
+	// Calculate column widths
+	colWidths := make([]int, len(headers))
+	for i, h := range headers {
+		colWidths[i] = len(h)
+	}
+	for _, row := range rows {
+		for i, cell := range row {
+			if i < len(colWidths) && len(cell) > colWidths[i] {
+				colWidths[i] = len(cell)
+			}
+		}
+	}
+
+	// Print header
+	fmt.Println()
+	for i, h := range headers {
+		fmt.Printf("%-*s  ", colWidths[i], h)
+	}
+	fmt.Println()
+
+	// Print separator
+	for _, w := range colWidths {
+		fmt.Print(strings.Repeat("─", w+2))
+	}
+	fmt.Println()
+
+	// Print rows
+	for _, row := range rows {
+		for i, cell := range row {
+			if i < len(colWidths) {
+				fmt.Printf("%-*s  ", colWidths[i], cell)
+			}
+		}
+		fmt.Println()
+	}
+	fmt.Println()
+}
+
+// PrintBox prints text in a box
+func (c *CLI) PrintBox(title string, lines []string) {
+	if c.quiet {
+		return
+	}
+
+	// Find max width
+	maxWidth := len(title)
+	for _, line := range lines {
+		if len(line) > maxWidth {
+			maxWidth = len(line)
+		}
+	}
+
+	width := maxWidth + 4 // Padding
+
+	// Top border
+	fmt.Println("┌" + strings.Repeat("─", width) + "┐")
+
+	// Title
+	padding := (width - len(title)) / 2
+	fmt.Printf("│%s%s%s│\n",
+		strings.Repeat(" ", padding),
+		c.Colorize(title, ColorBold),
+		strings.Repeat(" ", width-padding-len(title)))
+
+	// Separator
+	fmt.Println("├" + strings.Repeat("─", width) + "┤")
+
+	// Content lines
+	for _, line := range lines {
+		fmt.Printf("│ %-*s │\n", width-2, line)
+	}
+
+	// Bottom border
+	fmt.Println("└" + strings.Repeat("─", width) + "┘")
+}
+
+// PrintSpinner displays an animated spinner (for long operations)
+func (c *CLI) PrintSpinner(message string, done chan bool) {
+	if c.quiet {
+		return
+	}
+
+	spinChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	i := 0
+
+	for {
+		select {
+		case <-done:
+			fmt.Printf("\r%s\n", strings.Repeat(" ", len(message)+4))
+			return
+		default:
+			fmt.Printf("\r%s %s ", spinChars[i%len(spinChars)], message)
+			time.Sleep(80 * time.Millisecond)
+			i++
+		}
+	}
+}
+
+// PrintStats prints statistics in a formatted grid
+func (c *CLI) PrintStats(stats map[string]interface{}) {
+	if c.quiet {
+		return
+	}
+
+	fmt.Println("\n" + strings.Repeat("═", 70))
+	fmt.Println(c.Colorize(" STATISTICS", ColorBold+ColorCyan))
+	fmt.Println(strings.Repeat("═", 70))
+
+	for key, value := range stats {
+		fmt.Printf("  %-30s: ", key)
+
+		// Format value based on type
+		switch v := value.(type) {
+		case float64:
+			if v >= 1000 {
+				fmt.Printf(c.Colorize("%.2f", ColorGreen), v)
+			} else if v >= 100 {
+				fmt.Printf(c.Colorize("%.2f", ColorYellow), v)
+			} else {
+				fmt.Printf("%.2f", v)
+			}
+		case int:
+			if v >= 1000 {
+				fmt.Printf(c.Colorize("%d", ColorGreen), v)
+			} else {
+				fmt.Printf("%d", v)
+			}
+		case bool:
+			if v {
+				fmt.Print(c.Colorize("✓ Yes", ColorGreen))
+			} else {
+				fmt.Print(c.Colorize("✗ No", ColorRed))
+			}
+		case string:
+			fmt.Print(v)
+		default:
+			fmt.Printf("%v", v)
+		}
+		fmt.Println()
+	}
+
+	fmt.Println(strings.Repeat("═", 70) + "\n")
+}
+
+// PrintHelp prints comprehensive help information
+func (c *CLI) PrintHelp(commandName string) {
+	switch commandName {
+	case "train":
+		c.PrintBox("TRAINING HELP", []string{
+			"Usage: partner train [options]",
+			"",
+			"Options:",
+			"  --epochs N      Number of training epochs (default: 50)",
+			"  --batch-size N  Batch size (default: 64)",
+			"  --lr FLOAT      Learning rate (default: 0.001)",
+			"  --data PATH     Path to dataset (default: data/positions.db)",
+			"  --model PATH    Path to save model (default: data/models/chess_cnn.gob)",
+			"",
+			"Examples:",
+			"  partner train --epochs 100 --batch-size 128",
+			"  partner train --data custom.db --lr 0.0001",
+		})
+
+	case "infer":
+		c.PrintBox("INFERENCE HELP", []string{
+			"Usage: partner infer [options]",
+			"",
+			"Options:",
+			"  --model PATH    Path to trained model (required)",
+			"  --fen FEN       FEN string to analyze",
+			"  --batch N       Run batch inference on N random positions",
+			"  --top-k N       Show top N moves (default: 5)",
+			"",
+			"Examples:",
+			"  partner infer --model chess.gob --fen \"rnbqkbnr/pppppppp/...\"",
+			"  partner infer --batch 100 --top-k 3",
+		})
+
+	case "dataset":
+		c.PrintBox("DATASET HELP", []string{
+			"Usage: partner dataset [command]",
+			"",
+			"Commands:",
+			"  stats           Show dataset statistics",
+			"  ingest FILE     Ingest PGN file into dataset",
+			"  export FILE     Export samples to file",
+			"  validate        Validate dataset integrity",
+			"  compact         Compact database",
+			"",
+			"Examples:",
+			"  partner dataset stats",
+			"  partner dataset ingest games.pgn",
+			"  partner dataset export samples.txt --count 1000",
+		})
+
+	default:
+		c.PrintBox("P.A.R.T.N.E.R HELP", []string{
+			"Pattern Analysis & Real-Time Neural Enhancement for Reinforcement",
+			"",
+			"Available Commands:",
+			"  train      Train the neural network on chess positions",
+			"  infer      Run inference on chess positions",
+			"  dataset    Manage training dataset",
+			"  status     Show system status",
+			"  help       Show help for specific command",
+			"",
+			"Usage:",
+			"  partner <command> [options]",
+			"",
+			"Get help for specific command:",
+			"  partner help <command>",
+			"",
+			"Examples:",
+			"  partner train --epochs 100",
+			"  partner infer --model chess.gob --batch 50",
+			"  partner dataset stats",
+		})
+	}
 }
 
 // PrintSeparator prints a visual separator

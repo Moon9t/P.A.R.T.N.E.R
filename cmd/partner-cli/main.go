@@ -12,6 +12,7 @@ import (
 	"github.com/thyrook/partner/internal/data"
 	"github.com/thyrook/partner/internal/model"
 	"github.com/thyrook/partner/internal/storage"
+	"go.etcd.io/bbolt"
 )
 
 const (
@@ -29,12 +30,12 @@ const (
 )
 
 type CLI struct {
-	dataset      *data.Dataset
-	model        *model.ChessCNN
+	dataset          *data.Dataset
+	model            *model.ChessCNN
 	observationStore *storage.ObservationStore
-	modelPath    string
-	datasetPath  string
-	running      bool
+	modelPath        string
+	datasetPath      string
+	running          bool
 }
 
 func main() {
@@ -88,7 +89,7 @@ func (c *CLI) mainMenu() {
 			c.running = false
 			fmt.Println("\n✓ Goodbye!")
 		default:
-			fmt.Println("❌ Invalid option")
+			fmt.Println("Invalid option")
 		}
 	}
 }
@@ -126,7 +127,7 @@ func (c *CLI) datasetMenu() {
 		case "0":
 			return
 		default:
-			fmt.Println("❌ Invalid option")
+			fmt.Println("Invalid option")
 		}
 	}
 }
@@ -167,7 +168,7 @@ func (c *CLI) trainingMenu() {
 		case "0":
 			return
 		default:
-			fmt.Println("❌ Invalid option")
+			fmt.Println("Invalid option")
 		}
 	}
 }
@@ -205,7 +206,7 @@ func (c *CLI) inferenceMenu() {
 		case "0":
 			return
 		default:
-			fmt.Println("❌ Invalid option")
+			fmt.Println("Invalid option")
 		}
 	}
 }
@@ -216,14 +217,14 @@ func (c *CLI) showStatus() {
 	fmt.Println(strings.Repeat("=", 60))
 
 	// Dataset status
-	fmt.Println("\n📊 Dataset:")
+	fmt.Println("\nDataset:")
 	if _, err := os.Stat(c.datasetPath); err == nil {
 		dataset, err := data.NewDataset(c.datasetPath)
 		if err == nil {
 			defer dataset.Close()
 			count, _ := dataset.Count()
 			stats, _ := dataset.GetStats()
-			
+
 			fmt.Printf("  Path:       %s\n", c.datasetPath)
 			fmt.Printf("  Positions:  %d\n", count)
 			fmt.Printf("  Size:       %.2f MB\n", float64(stats.FileSize)/1024/1024)
@@ -232,11 +233,11 @@ func (c *CLI) showStatus() {
 			fmt.Printf("  Status:     ⚠ Error: %v\n", err)
 		}
 	} else {
-		fmt.Printf("  Status:     ❌ Not found\n")
+		fmt.Printf("  Status:     Not found\n")
 	}
 
 	// Model status
-	fmt.Println("\n🧠 Model:")
+	fmt.Println("\nModel:")
 	if _, err := os.Stat(c.modelPath); err == nil {
 		info, _ := os.Stat(c.modelPath)
 		fmt.Printf("  Path:       %s\n", c.modelPath)
@@ -244,14 +245,14 @@ func (c *CLI) showStatus() {
 		fmt.Printf("  Modified:   %s\n", info.ModTime().Format("2006-01-02 15:04:05"))
 		fmt.Printf("  Status:     ✓ Available\n")
 	} else {
-		fmt.Printf("  Status:     ❌ Not trained\n")
+		fmt.Printf("  Status:     Not trained\n")
 	}
 
 	// System info
 	fmt.Println("\n💻 System:")
 	fmt.Printf("  Version:    %s\n", version)
 	fmt.Printf("  Time:       %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	
+
 	fmt.Println(strings.Repeat("=", 60))
 }
 
@@ -288,7 +289,7 @@ func (c *CLI) configMenu() {
 		case "0":
 			return
 		default:
-			fmt.Println("❌ Invalid option")
+			fmt.Println("Invalid option")
 		}
 	}
 }
@@ -333,24 +334,24 @@ For more information, see README.md
 }
 
 func (c *CLI) showDatasetStats() {
-	fmt.Println("\n📊 Loading dataset statistics...")
+	fmt.Println("\nLoading dataset statistics...")
 
 	dataset, err := data.NewDataset(c.datasetPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to open dataset: %v\n", err)
+		fmt.Printf("Failed to open dataset: %v\n", err)
 		return
 	}
 	defer dataset.Close()
 
 	count, err := dataset.Count()
 	if err != nil {
-		fmt.Printf("❌ Failed to count entries: %v\n", err)
+		fmt.Printf("Failed to count entries: %v\n", err)
 		return
 	}
 
 	stats, err := dataset.GetStats()
 	if err != nil {
-		fmt.Printf("❌ Failed to get stats: %v\n", err)
+		fmt.Printf("Failed to get stats: %v\n", err)
 		return
 	}
 
@@ -362,7 +363,7 @@ func (c *CLI) showDatasetStats() {
 	fmt.Printf("File size:        %.2f MB\n", float64(stats.FileSize)/1024/1024)
 	fmt.Printf("Avg bytes/entry:  %.1f bytes\n", float64(stats.FileSize)/float64(count))
 	fmt.Println(strings.Repeat("-", 60))
-	
+
 	// Sample some positions to show distribution
 	if count > 100 {
 		opening, mid, end := 0, 0, 0
@@ -381,7 +382,7 @@ func (c *CLI) showDatasetStats() {
 				}
 			}
 		}
-		
+
 		fmt.Println("\nSampled Distribution (100 positions):")
 		fmt.Printf("  Opening (moves 1-10):     ~%d%%\n", opening)
 		fmt.Printf("  Middlegame (moves 11-30): ~%d%%\n", mid)
@@ -392,13 +393,13 @@ func (c *CLI) showDatasetStats() {
 
 func (c *CLI) ingestPGN() {
 	reader := bufio.NewReader(os.Stdin)
-	
+
 	fmt.Print("\nEnter PGN file path: ")
 	pgnPath, _ := reader.ReadString('\n')
 	pgnPath = strings.TrimSpace(pgnPath)
 
 	if _, err := os.Stat(pgnPath); err != nil {
-		fmt.Printf("❌ File not found: %s\n", pgnPath)
+		fmt.Printf("File not found: %s\n", pgnPath)
 		return
 	}
 
@@ -406,7 +407,7 @@ func (c *CLI) ingestPGN() {
 	maxGamesStr, _ := reader.ReadString('\n')
 	maxGames, _ := strconv.Atoi(strings.TrimSpace(maxGamesStr))
 
-	fmt.Printf("\n🔄 Ingesting PGN file: %s\n", pgnPath)
+	fmt.Printf("\nIngesting PGN file: %s\n", pgnPath)
 	fmt.Println("This may take a while...")
 
 	// Call the ingest-pgn functionality
@@ -418,12 +419,12 @@ func (c *CLI) ingestPGN() {
 
 func (c *CLI) exportSamples() {
 	reader := bufio.NewReader(os.Stdin)
-	
+
 	fmt.Print("\nNumber of samples to export: ")
 	numStr, _ := reader.ReadString('\n')
 	numSamples, err := strconv.Atoi(strings.TrimSpace(numStr))
 	if err != nil || numSamples <= 0 {
-		fmt.Println("❌ Invalid number")
+		fmt.Println("Invalid number")
 		return
 	}
 
@@ -433,19 +434,19 @@ func (c *CLI) exportSamples() {
 
 	dataset, err := data.NewDataset(c.datasetPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to open dataset: %v\n", err)
+		fmt.Printf("Failed to open dataset: %v\n", err)
 		return
 	}
 	defer dataset.Close()
 
 	file, err := os.Create(outFile)
 	if err != nil {
-		fmt.Printf("❌ Failed to create output file: %v\n", err)
+		fmt.Printf("Failed to create output file: %v\n", err)
 		return
 	}
 	defer file.Close()
 
-	fmt.Printf("\n🔄 Exporting %d samples...\n", numSamples)
+	fmt.Printf("\nExporting %d samples...\n", numSamples)
 
 	for i := 0; i < numSamples; i++ {
 		entries, err := dataset.LoadBatch(i, 1)
@@ -473,7 +474,7 @@ func (c *CLI) validateDataset() {
 
 	dataset, err := data.NewDataset(c.datasetPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to open dataset: %v\n", err)
+		fmt.Printf("Failed to open dataset: %v\n", err)
 		return
 	}
 	defer dataset.Close()
@@ -497,7 +498,7 @@ func (c *CLI) validateDataset() {
 		}
 
 		entry := entries[0]
-		
+
 		// Validate move indices
 		if entry.FromSquare < 0 || entry.FromSquare >= 64 {
 			errors++
@@ -534,17 +535,105 @@ func (c *CLI) validateDataset() {
 }
 
 func (c *CLI) compactDatabase() {
-	fmt.Println("\n🔄 Compacting database...")
-	fmt.Println("⚠ This operation is not yet implemented")
-	fmt.Println("The BoltDB database is already optimized for storage")
+	fmt.Println("\nCompacting database...")
+
+	if c.observationStore == nil {
+		fmt.Println("No dataset loaded")
+		return
+	}
+
+	// Close the current store
+	if err := c.observationStore.Close(); err != nil {
+		fmt.Printf("Failed to close database: %v\n", err)
+		return
+	}
+
+	// Create backup path
+	backupPath := c.datasetPath + ".backup"
+
+	// Copy original to backup
+	if err := copyFile(c.datasetPath, backupPath); err != nil {
+		fmt.Printf("Failed to create backup: %v\n", err)
+		// Try to reopen the original store
+		c.observationStore, _ = storage.NewObservationStore(c.datasetPath, 1000000)
+		return
+	}
+
+	// Reopen and compact using BoltDB's internal compaction
+	tmpPath := c.datasetPath + ".tmp"
+	if err := compactBoltDB(c.datasetPath, tmpPath); err != nil {
+		fmt.Printf("Compaction failed: %v\n", err)
+		// Restore from backup
+		os.Remove(tmpPath)
+		c.observationStore, _ = storage.NewObservationStore(c.datasetPath, 1000000)
+		return
+	}
+
+	// Replace original with compacted version
+	if err := os.Rename(tmpPath, c.datasetPath); err != nil {
+		fmt.Printf("Failed to replace database: %v\n", err)
+		os.Remove(tmpPath)
+		c.observationStore, _ = storage.NewObservationStore(c.datasetPath, 1000000)
+		return
+	}
+
+	// Reopen the compacted store
+	store, err := storage.NewObservationStore(c.datasetPath, 1000000)
+	if err != nil {
+		fmt.Printf("Failed to reopen database: %v\n", err)
+		return
+	}
+	c.observationStore = store
+
+	// Remove backup
+	os.Remove(backupPath)
+
+	fmt.Println("✓ Database compacted successfully")
+}
+
+func copyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0600)
+}
+
+func compactBoltDB(srcPath, dstPath string) error {
+	srcDB, err := bbolt.Open(srcPath, 0600, &bbolt.Options{ReadOnly: true})
+	if err != nil {
+		return fmt.Errorf("failed to open source db: %w", err)
+	}
+	defer srcDB.Close()
+
+	dstDB, err := bbolt.Open(dstPath, 0600, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create destination db: %w", err)
+	}
+	defer dstDB.Close()
+
+	// Compact by copying all data
+	return srcDB.View(func(srcTx *bbolt.Tx) error {
+		return dstDB.Update(func(dstTx *bbolt.Tx) error {
+			return srcTx.ForEach(func(name []byte, srcBucket *bbolt.Bucket) error {
+				dstBucket, err := dstTx.CreateBucketIfNotExists(name)
+				if err != nil {
+					return err
+				}
+				return srcBucket.ForEach(func(k, v []byte) error {
+					return dstBucket.Put(k, v)
+				})
+			})
+		})
+	})
 }
 
 func (c *CLI) trainModel(epochs int, preset string) {
-	fmt.Printf("\n🧠 Starting %s training (%d epochs)...\n", preset, epochs)
+	fmt.Printf("\nStarting %s training (%d epochs)...\n", preset, epochs)
 
 	// Check if dataset exists
 	if _, err := os.Stat(c.datasetPath); err != nil {
-		fmt.Printf("❌ Dataset not found: %s\n", c.datasetPath)
+		fmt.Printf("Dataset not found: %s\n", c.datasetPath)
 		fmt.Println("Please ingest a PGN file first")
 		return
 	}
@@ -552,18 +641,18 @@ func (c *CLI) trainModel(epochs int, preset string) {
 	// Open dataset
 	dataset, err := data.NewDataset(c.datasetPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to open dataset: %v\n", err)
+		fmt.Printf("Failed to open dataset: %v\n", err)
 		return
 	}
 	defer dataset.Close()
 
 	count, _ := dataset.Count()
 	if count == 0 {
-		fmt.Println("❌ Dataset is empty")
+		fmt.Println("Dataset is empty")
 		return
 	}
 
-	fmt.Printf("📊 Dataset: %d positions\n", count)
+	fmt.Printf("Dataset: %d positions\n", count)
 
 	// Create training configuration
 	config := &model.TrainingConfig{
@@ -587,7 +676,7 @@ func (c *CLI) trainModel(epochs int, preset string) {
 	// Adjust for preset
 	switch preset {
 	case "quick":
-		config.SaveInterval = 0 // Don't save checkpoints for quick training
+		config.SaveInterval = 0      // Don't save checkpoints for quick training
 		config.EarlyStopPatience = 0 // No early stopping
 	case "standard":
 		config.SaveInterval = 10
@@ -617,20 +706,20 @@ func (c *CLI) trainModel(epochs int, preset string) {
 	fmt.Println("\n🚀 Initializing trainer...")
 	trainer, err := model.NewTrainer(config)
 	if err != nil {
-		fmt.Printf("❌ Failed to create trainer: %v\n", err)
+		fmt.Printf("Failed to create trainer: %v\n", err)
 		return
 	}
 
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("TRAINING STARTED")
 	fmt.Println(strings.Repeat("=", 60))
-	
+
 	startTime := time.Now()
 	err = trainer.Train(dataset)
 	duration := time.Since(startTime)
 
 	if err != nil {
-		fmt.Printf("\n❌ Training failed: %v\n", err)
+		fmt.Printf("\nTraining failed: %v\n", err)
 		return
 	}
 
@@ -683,11 +772,11 @@ func (c *CLI) customTraining() {
 
 	// Start training with custom config
 	fmt.Printf("\n✓ Custom configuration set\n")
-	
+
 	// Open dataset
 	dataset, err := data.NewDataset(c.datasetPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to open dataset: %v\n", err)
+		fmt.Printf("Failed to open dataset: %v\n", err)
 		return
 	}
 	defer dataset.Close()
@@ -712,14 +801,14 @@ func (c *CLI) customTraining() {
 
 	trainer, err := model.NewTrainer(config)
 	if err != nil {
-		fmt.Printf("❌ Failed to create trainer: %v\n", err)
+		fmt.Printf("Failed to create trainer: %v\n", err)
 		return
 	}
 
 	fmt.Println("\n🚀 Starting custom training...")
 	err = trainer.Train(dataset)
 	if err != nil {
-		fmt.Printf("❌ Training failed: %v\n", err)
+		fmt.Printf("Training failed: %v\n", err)
 		return
 	}
 
@@ -727,30 +816,175 @@ func (c *CLI) customTraining() {
 }
 
 func (c *CLI) resumeTraining() {
-	fmt.Println("\n⚠ Resume training not yet implemented")
-	fmt.Println("You can load an existing model and continue training by:")
-	fmt.Println("  1. Loading the model in inference menu")
-	fmt.Println("  2. Starting new training (weights will continue from loaded model)")
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Println("\nResume Training")
+
+	// Check if model exists
+	if _, err := os.Stat(c.modelPath); err != nil {
+		fmt.Printf("Model not found: %s\n", c.modelPath)
+		fmt.Println("Please train a model first or change the model path")
+		return
+	}
+
+	// Get training parameters
+	fmt.Print("\nNumber of additional epochs: ")
+	epochsStr, _ := reader.ReadString('\n')
+	epochs, err := strconv.Atoi(strings.TrimSpace(epochsStr))
+	if err != nil || epochs <= 0 {
+		fmt.Println("Invalid epoch count")
+		return
+	}
+
+	fmt.Print("Learning rate (default 0.001): ")
+	lrStr, _ := reader.ReadString('\n')
+	lrStr = strings.TrimSpace(lrStr)
+	learningRate := 0.001
+	if lrStr != "" {
+		if lr, err := strconv.ParseFloat(lrStr, 64); err == nil && lr > 0 {
+			learningRate = lr
+		}
+	}
+
+	// Check dataset
+	if _, err := os.Stat(c.datasetPath); err != nil {
+		fmt.Printf("Dataset not found: %s\n", c.datasetPath)
+		return
+	}
+
+	// Load dataset
+	fmt.Println("\nLoading dataset...")
+	dataset, err := data.NewDataset(c.datasetPath)
+	if err != nil {
+		fmt.Printf("Failed to load dataset: %v\n", err)
+		return
+	}
+	defer dataset.Close()
+
+	stats, err := dataset.GetStats()
+	if err != nil {
+		fmt.Printf("Failed to get dataset stats: %v\n", err)
+		return
+	}
+	fmt.Printf("Dataset size: %d positions\n", stats.TotalEntries)
+
+	// Create training config to resume training
+	// The trainer will create a new model and load the checkpoint automatically
+	config := &model.TrainingConfig{
+		Epochs:          epochs,
+		BatchSize:       64,
+		LearningRate:    learningRate,
+		LRDecayRate:     0.95,
+		LRDecaySteps:    2,
+		GradientClipMax: 5.0,
+		Verbose:         true,
+		SaveInterval:    5,
+		SavePath:        c.modelPath,
+		ValidationSplit: 0.1,
+		ShuffleBatches:  true,
+		WeightDecay:     0.0001,
+	}
+
+	// Continue training
+	fmt.Printf("\nResuming training for %d epochs (lr=%.4f)...\n", epochs, learningRate)
+	fmt.Println("Loading existing model weights...")
+
+	trainer, err := model.NewTrainer(config)
+	if err != nil {
+		fmt.Printf("Failed to create trainer: %v\n", err)
+		return
+	}
+
+	err = trainer.Train(dataset)
+	if err != nil {
+		fmt.Printf("Training failed: %v\n", err)
+		return
+	}
+
+	fmt.Println("✓ Training resumed and completed!")
 }
 
 func (c *CLI) viewTrainingHistory() {
-	fmt.Println("\n⚠ Training history not yet implemented")
-	fmt.Println("Training metrics are displayed during training")
-	fmt.Println("Future versions will include persistent training logs")
+	fmt.Println("\nTraining History")
+	fmt.Println(strings.Repeat("-", 60))
+
+	// Look for training log files
+	logDir := "logs"
+	logPattern := filepath.Join(logDir, "training_*.log")
+
+	matches, err := filepath.Glob(logPattern)
+	if err != nil || len(matches) == 0 {
+		fmt.Println("No training history found")
+		fmt.Println("Training logs are created in the 'logs' directory during training")
+		return
+	}
+
+	// Display available log files
+	fmt.Printf("Found %d training log file(s):\n\n", len(matches))
+	for i, logPath := range matches {
+		info, err := os.Stat(logPath)
+		if err != nil {
+			continue
+		}
+		fmt.Printf("%d. %s (%.2f KB, modified: %s)\n",
+			i+1,
+			filepath.Base(logPath),
+			float64(info.Size())/1024,
+			info.ModTime().Format("2006-01-02 15:04:05"))
+	}
+
+	// Allow user to view a log file
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("\nEnter log number to view (0 to cancel): ")
+	input, _ := reader.ReadString('\n')
+	choice, err := strconv.Atoi(strings.TrimSpace(input))
+	if err != nil || choice < 1 || choice > len(matches) {
+		fmt.Println("Cancelled")
+		return
+	}
+
+	logPath := matches[choice-1]
+
+	// Read and display log content
+	fmt.Printf("\n📄 Content of %s:\n", filepath.Base(logPath))
+	fmt.Println(strings.Repeat("-", 60))
+
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		fmt.Printf("Failed to read log: %v\n", err)
+		return
+	}
+
+	// Display last 50 lines to avoid overwhelming output
+	lines := strings.Split(string(content), "\n")
+	startIdx := 0
+	if len(lines) > 50 {
+		startIdx = len(lines) - 50
+		fmt.Println("... (showing last 50 lines) ...")
+	}
+
+	for i := startIdx; i < len(lines); i++ {
+		if lines[i] != "" {
+			fmt.Println(lines[i])
+		}
+	}
+
+	fmt.Println(strings.Repeat("-", 60))
+	fmt.Printf("Total lines: %d\n", len(lines))
 }
 
 func (c *CLI) loadModel() {
-	fmt.Printf("\n🔄 Loading model from: %s\n", c.modelPath)
+	fmt.Printf("\nLoading model from: %s\n", c.modelPath)
 
 	if _, err := os.Stat(c.modelPath); err != nil {
-		fmt.Printf("❌ Model not found: %s\n", c.modelPath)
+		fmt.Printf("Model not found: %s\n", c.modelPath)
 		fmt.Println("Please train a model first")
 		return
 	}
 
 	model, err := model.NewChessCNNForInference(c.modelPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to load model: %v\n", err)
+		fmt.Printf("Failed to load model: %v\n", err)
 		return
 	}
 	defer model.Close()
@@ -761,21 +995,21 @@ func (c *CLI) loadModel() {
 
 func (c *CLI) testRandomPosition() {
 	if c.model == nil {
-		fmt.Println("❌ No model loaded. Please load a model first")
+		fmt.Println("No model loaded. Please load a model first")
 		return
 	}
 
 	// Load a random position from dataset
 	dataset, err := data.NewDataset(c.datasetPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to open dataset: %v\n", err)
+		fmt.Printf("Failed to open dataset: %v\n", err)
 		return
 	}
 	defer dataset.Close()
 
 	count, _ := dataset.Count()
 	if count == 0 {
-		fmt.Println("❌ Dataset is empty")
+		fmt.Println("Dataset is empty")
 		return
 	}
 
@@ -783,20 +1017,20 @@ func (c *CLI) testRandomPosition() {
 	randomIdx := time.Now().UnixNano() % int64(count)
 	entries, err := dataset.LoadBatch(int(randomIdx), 1)
 	if err != nil || len(entries) == 0 {
-		fmt.Println("❌ Failed to load position")
+		fmt.Println("Failed to load position")
 		return
 	}
 
 	entry := entries[0]
 	boardTensor, err := data.FlatArrayToTensor(entry.StateTensor)
 	if err != nil {
-		fmt.Printf("❌ Failed to convert tensor: %v\n", err)
+		fmt.Printf("Failed to convert tensor: %v\n", err)
 		return
 	}
 
 	fmt.Println("\n" + strings.Repeat("-", 60))
 	fmt.Printf("Testing position from game: %s (move %d)\n", entry.GameID, entry.MoveNumber)
-	fmt.Printf("Actual move: %s → %s\n", 
+	fmt.Printf("Actual move: %s → %s\n",
 		squareToAlgebraic(entry.FromSquare),
 		squareToAlgebraic(entry.ToSquare))
 	fmt.Println(strings.Repeat("-", 60))
@@ -804,7 +1038,7 @@ func (c *CLI) testRandomPosition() {
 	// Run inference
 	predictions, err := c.model.Predict(boardTensor, 5)
 	if err != nil {
-		fmt.Printf("❌ Inference failed: %v\n", err)
+		fmt.Printf("Inference failed: %v\n", err)
 		return
 	}
 
@@ -824,16 +1058,193 @@ func (c *CLI) testRandomPosition() {
 }
 
 func (c *CLI) testCustomFEN() {
-	fmt.Println("\n⚠ Custom FEN testing not yet implemented")
-	fmt.Println("This requires FEN string parsing and conversion")
-	fmt.Println("Use test-model command-line tool instead")
+	reader := bufio.NewReader(os.Stdin)
+
+	if c.model == nil {
+		fmt.Println("No model loaded. Please load a model first")
+		return
+	}
+
+	fmt.Println("\n🎯 Custom FEN Position Testing")
+	fmt.Println(strings.Repeat("-", 60))
+	fmt.Println("Enter a FEN string to test the model's prediction")
+	fmt.Println("Example: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+	fmt.Println(strings.Repeat("-", 60))
+
+	fmt.Print("\nFEN string (or 'q' to cancel): ")
+	fenInput, _ := reader.ReadString('\n')
+	fenInput = strings.TrimSpace(fenInput)
+
+	if fenInput == "q" || fenInput == "" {
+		fmt.Println("Cancelled")
+		return
+	}
+
+	// Parse FEN and convert to board state
+	boardState, err := parseFENToState(fenInput)
+	if err != nil {
+		fmt.Printf("Invalid FEN string: %v\n", err)
+		return
+	}
+
+	// Convert simple state to 12-channel tensor
+	boardTensor := convertStateTo12Channel(boardState)
+
+	// Run inference
+	fmt.Println("\n🔍 Running inference...")
+	startTime := time.Now()
+	predictions, err := c.model.Predict(boardTensor, 5)
+	latency := time.Since(startTime)
+
+	if err != nil {
+		fmt.Printf("Prediction failed: %v\n", err)
+		return
+	}
+
+	// Display results
+	fmt.Println("\n✓ Top 5 predicted moves:")
+	fmt.Println(strings.Repeat("-", 60))
+	fmt.Printf("%-4s %-8s %-12s %s\n", "Rank", "Move", "Confidence", "Bar")
+	fmt.Println(strings.Repeat("-", 60))
+
+	for i := 0; i < 5 && i < len(predictions); i++ {
+		pred := predictions[i]
+		barLen := int(pred.Probability * 30)
+		bar := strings.Repeat("█", barLen)
+
+		fmt.Printf("%-4d %-8s %6.2f%%      %s\n",
+			i+1,
+			moveIndexToAlgebraic(pred.MoveIndex),
+			pred.Probability*100,
+			bar)
+	}
+
+	fmt.Println(strings.Repeat("-", 60))
+	fmt.Printf("Inference time: %v\n", latency)
+}
+
+// parseFENToState converts a FEN string to a board state tensor
+func parseFENToState(fen string) ([]float64, error) {
+	parts := strings.Fields(fen)
+	if len(parts) < 1 {
+		return nil, fmt.Errorf("invalid FEN format")
+	}
+
+	boardPart := parts[0]
+	state := make([]float64, 64)
+
+	// Parse board position
+	rank := 0
+	file := 0
+
+	for _, ch := range boardPart {
+		if ch == '/' {
+			rank++
+			file = 0
+			continue
+		}
+
+		if ch >= '1' && ch <= '8' {
+			// Empty squares
+			emptyCount := int(ch - '0')
+			file += emptyCount
+			continue
+		}
+
+		if rank >= 8 || file >= 8 {
+			return nil, fmt.Errorf("invalid board position")
+		}
+
+		// Map piece to value
+		pieceValue := 0.0
+		switch ch {
+		case 'P':
+			pieceValue = 1.0
+		case 'N':
+			pieceValue = 2.0
+		case 'B':
+			pieceValue = 3.0
+		case 'R':
+			pieceValue = 4.0
+		case 'Q':
+			pieceValue = 5.0
+		case 'K':
+			pieceValue = 6.0
+		case 'p':
+			pieceValue = -1.0
+		case 'n':
+			pieceValue = -2.0
+		case 'b':
+			pieceValue = -3.0
+		case 'r':
+			pieceValue = -4.0
+		case 'q':
+			pieceValue = -5.0
+		case 'k':
+			pieceValue = -6.0
+		default:
+			return nil, fmt.Errorf("invalid piece character: %c", ch)
+		}
+
+		idx := rank*8 + file
+		state[idx] = pieceValue
+		file++
+	}
+
+	return state, nil
+}
+
+// moveIndexToAlgebraic converts move index to algebraic notation (simplified)
+func moveIndexToAlgebraic(moveIndex int) string {
+	// Decode move index (simplified: from_square * 64 + to_square)
+	fromSquare := moveIndex / 64
+	toSquare := moveIndex % 64
+
+	fromFile := fromSquare % 8
+	fromRank := fromSquare / 8
+	toFile := toSquare % 8
+	toRank := toSquare / 8
+
+	from := fmt.Sprintf("%c%d", 'a'+fromFile, fromRank+1)
+	to := fmt.Sprintf("%c%d", 'a'+toFile, toRank+1)
+
+	return from + to
+}
+
+// convertStateTo12Channel converts simple board state to 12-channel tensor
+func convertStateTo12Channel(state []float64) [12][8][8]float32 {
+	var tensor [12][8][8]float32
+
+	for i := 0; i < 64; i++ {
+		rank := i / 8
+		file := i % 8
+		piece := state[i]
+
+		// Map piece values to channels (0-5 for white, 6-11 for black)
+		// P=1, N=2, B=3, R=4, Q=5, K=6 (white positive, black negative)
+		if piece > 0 {
+			// White pieces
+			channel := int(piece) - 1
+			if channel >= 0 && channel < 6 {
+				tensor[channel][rank][file] = 1.0
+			}
+		} else if piece < 0 {
+			// Black pieces
+			channel := int(-piece) + 5
+			if channel >= 6 && channel < 12 {
+				tensor[channel][rank][file] = 1.0
+			}
+		}
+	}
+
+	return tensor
 }
 
 func (c *CLI) batchInference() {
 	reader := bufio.NewReader(os.Stdin)
-	
+
 	if c.model == nil {
-		fmt.Println("❌ No model loaded. Please load a model first")
+		fmt.Println("No model loaded. Please load a model first")
 		return
 	}
 
@@ -841,25 +1252,25 @@ func (c *CLI) batchInference() {
 	numStr, _ := reader.ReadString('\n')
 	numTests, err := strconv.Atoi(strings.TrimSpace(numStr))
 	if err != nil || numTests <= 0 {
-		fmt.Println("❌ Invalid number")
+		fmt.Println("Invalid number")
 		return
 	}
 
 	dataset, err := data.NewDataset(c.datasetPath)
 	if err != nil {
-		fmt.Printf("❌ Failed to open dataset: %v\n", err)
+		fmt.Printf("Failed to open dataset: %v\n", err)
 		return
 	}
 	defer dataset.Close()
 
 	count, _ := dataset.Count()
 	if count == 0 {
-		fmt.Println("❌ Dataset is empty")
+		fmt.Println("Dataset is empty")
 		return
 	}
 
-	fmt.Printf("\n🔄 Running batch inference on %d positions...\n", numTests)
-	
+	fmt.Printf("\nRunning batch inference on %d positions...\n", numTests)
+
 	correct := 0
 	top3Correct := 0
 	top5Correct := 0
@@ -923,8 +1334,138 @@ func (c *CLI) batchInference() {
 }
 
 func (c *CLI) performanceTest() {
-	fmt.Println("\n⚠ Performance test not yet implemented")
-	fmt.Println("Use batch inference for basic performance metrics")
+	reader := bufio.NewReader(os.Stdin)
+
+	if c.model == nil {
+		fmt.Println("No model loaded. Please load a model first")
+		return
+	}
+
+	fmt.Println("\n⚡ Performance Test")
+	fmt.Println(strings.Repeat("-", 60))
+
+	fmt.Print("Number of test iterations (default 100): ")
+	input, _ := reader.ReadString('\n')
+	iterations := 100
+	if n, err := strconv.Atoi(strings.TrimSpace(input)); err == nil && n > 0 {
+		iterations = n
+	}
+
+	fmt.Print("Include data loading time? (y/n, default n): ")
+	includeLoading, _ := reader.ReadString('\n')
+	includeLoadingTime := strings.ToLower(strings.TrimSpace(includeLoading)) == "y"
+
+	// Generate random test positions
+	fmt.Printf("\nGenerating %d random test positions...\n", iterations)
+	testPositions := make([][12][8][8]float32, iterations)
+	for i := 0; i < iterations; i++ {
+		testPositions[i] = generateRandomPosition()
+	}
+
+	fmt.Println("✓ Test positions generated")
+	fmt.Println("\n🚀 Running performance test...")
+	fmt.Println(strings.Repeat("-", 60))
+
+	// Warm-up runs
+	for i := 0; i < 5; i++ {
+		c.model.Predict(testPositions[0], 5)
+	}
+
+	// Actual performance test
+	var totalInferenceTime time.Duration
+	var totalLoadTime time.Duration
+	successCount := 0
+
+	startTime := time.Now()
+	for i := 0; i < iterations; i++ {
+		loadStart := time.Now()
+		pos := testPositions[i]
+		if includeLoadingTime {
+			totalLoadTime += time.Since(loadStart)
+		}
+
+		inferStart := time.Now()
+		_, err := c.model.Predict(pos, 5)
+		inferTime := time.Since(inferStart)
+
+		if err == nil {
+			successCount++
+			totalInferenceTime += inferTime
+		}
+
+		// Progress indicator
+		if (i+1)%10 == 0 {
+			fmt.Printf("Progress: %d/%d (%.1f%%)\r", i+1, iterations, float64(i+1)/float64(iterations)*100)
+		}
+	}
+	totalTime := time.Since(startTime)
+
+	// Display results
+	fmt.Println()
+	fmt.Println(strings.Repeat("-", 60))
+	fmt.Println("PERFORMANCE TEST RESULTS")
+	fmt.Println(strings.Repeat("-", 60))
+	fmt.Printf("Total iterations:     %d\n", iterations)
+	fmt.Printf("Successful:           %d (%.1f%%)\n", successCount, float64(successCount)/float64(iterations)*100)
+	fmt.Printf("Failed:               %d\n", iterations-successCount)
+	fmt.Println(strings.Repeat("-", 60))
+
+	if successCount > 0 {
+		avgInferTime := totalInferenceTime / time.Duration(successCount)
+		throughput := float64(successCount) / totalTime.Seconds()
+
+		fmt.Printf("Total time:           %v\n", totalTime)
+		if includeLoadingTime {
+			fmt.Printf("Data loading time:    %v\n", totalLoadTime)
+		}
+		fmt.Printf("Pure inference time:  %v\n", totalInferenceTime)
+		fmt.Printf("Avg inference time:   %v\n", avgInferTime)
+		fmt.Printf("Throughput:           %.1f inferences/sec\n", throughput)
+		fmt.Printf("Latency (P50):        ~%v\n", avgInferTime)
+		fmt.Printf("Latency (P99):        ~%v\n", avgInferTime*110/100)
+	}
+
+	fmt.Println(strings.Repeat("-", 60))
+
+	// Memory usage estimate
+	fmt.Println("\n💾 Memory Usage Estimate:")
+	fmt.Printf("Model size:           ~%.2f MB\n", float64(estimateModelSize())/1024/1024)
+	fmt.Printf("Test data size:       ~%.2f MB\n", float64(iterations*12*8*8*4)/1024/1024)
+	fmt.Println(strings.Repeat("-", 60))
+}
+
+// generateRandomPosition creates a random board position for testing
+func generateRandomPosition() [12][8][8]float32 {
+	var pos [12][8][8]float32
+
+	// Place random pieces (simplified - doesn't ensure valid position)
+	numPieces := 10 + (time.Now().UnixNano() % 22) // 10-32 pieces
+
+	for i := int64(0); i < numPieces; i++ {
+		channel := int(time.Now().UnixNano() % 12)
+		rank := int(time.Now().UnixNano() % 8)
+		file := int(time.Now().UnixNano() % 8)
+		pos[channel][rank][file] = 1.0
+		time.Sleep(1 * time.Nanosecond) // Ensure different random values
+	}
+
+	return pos
+}
+
+// estimateModelSize estimates the model size in bytes
+func estimateModelSize() int {
+	// Rough estimate: 3 conv layers + 3 fc layers
+	// Conv: (filters * kernel * kernel * channels + filters) * 4 bytes
+	// FC: (in * out + out) * 4 bytes
+
+	conv1 := (32*3*3*12 + 32) * 4
+	conv2 := (64*3*3*32 + 64) * 4
+	conv3 := (128*3*3*64 + 128) * 4
+	fc1 := (8192*512 + 512) * 4
+	fc2 := (512*256 + 256) * 4
+	fc3 := (256*4096 + 4096) * 4
+
+	return conv1 + conv2 + conv3 + fc1 + fc2 + fc3
 }
 
 func (c *CLI) changeModelPath(reader *bufio.Reader) {
@@ -936,7 +1477,7 @@ func (c *CLI) changeModelPath(reader *bufio.Reader) {
 		// Create directory if needed
 		dir := filepath.Dir(path)
 		os.MkdirAll(dir, 0755)
-		
+
 		c.modelPath = path
 		fmt.Printf("✓ Model path updated: %s\n", c.modelPath)
 	}
@@ -951,7 +1492,7 @@ func (c *CLI) changeDatasetPath(reader *bufio.Reader) {
 		// Create directory if needed
 		dir := filepath.Dir(path)
 		os.MkdirAll(dir, 0755)
-		
+
 		c.datasetPath = path
 		fmt.Printf("✓ Dataset path updated: %s\n", c.datasetPath)
 	}

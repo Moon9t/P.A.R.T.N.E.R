@@ -174,7 +174,7 @@ func (de *DecisionEngine) captureBoardWithFallback() (*vision.BoardState, error)
 	return nil, fmt.Errorf("all capture attempts failed: %w", lastErr)
 }
 
-// rankMoves ranks predictions and returns top K moves with metadata
+// rankMoves ranks predictions and returns top K moves with rich metadata and explanations
 func (de *DecisionEngine) rankMoves(predictions []float64) []RankedMove {
 	// Get top K moves from model
 	topMoves := model.GetTopKMoves(predictions, de.topK)
@@ -183,8 +183,15 @@ func (de *DecisionEngine) rankMoves(predictions []float64) []RankedMove {
 
 	for i, moveScore := range topMoves {
 		move := model.DecodeMove(moveScore.MoveIndex)
-		category := de.categorizeMove(moveScore.Score)
-		explanation := de.explainMove(moveScore.Score, i+1)
+
+		// Detect patterns for this move
+		patterns := de.detectMovePatterns(move, predictions)
+
+		// Generate comprehensive explanation with pattern awareness
+		explanation := de.generateRichExplanation(moveScore.Score, i+1, move, patterns)
+
+		// Categorize with pattern consideration
+		category := de.CategorizeMove(moveScore.Score, patterns)
 
 		rankedMoves = append(rankedMoves, RankedMove{
 			Move:        move,
@@ -199,7 +206,67 @@ func (de *DecisionEngine) rankMoves(predictions []float64) []RankedMove {
 	return rankedMoves
 }
 
-// categorizeMove categorizes a move based on confidence
+// generateRichExplanation creates detailed, human-friendly move explanation with tactical context
+func (de *DecisionEngine) generateRichExplanation(confidence float64, rank int, move string, patterns []string) string {
+	explanation := ""
+
+	// Primary assessment based on rank and confidence
+	if rank == 1 {
+		if confidence >= 0.85 {
+			explanation = "🌟 Highly recommended. "
+		} else if confidence >= 0.70 {
+			explanation = "✓ Strong candidate. "
+		} else if confidence >= 0.50 {
+			explanation = "→ Reasonable choice. "
+		} else {
+			explanation = "⚠️ Uncertain position. "
+		}
+	} else {
+		explanation = fmt.Sprintf("Alternative #%d: ", rank)
+	}
+
+	// Add tactical/strategic description from patterns
+	if len(patterns) > 0 {
+		primaryPattern := patterns[0]
+		explanation += primaryPattern + ". "
+
+		// Add secondary pattern if exists
+		if len(patterns) > 1 && rank == 1 {
+			explanation += patterns[1] + ". "
+		}
+	} else {
+		// Generic descriptions based on confidence
+		if confidence >= 0.70 {
+			explanation += "Solid positional play. "
+		} else if confidence >= 0.40 {
+			explanation += "Developing the position. "
+		} else {
+			explanation += "Speculative move. "
+		}
+	}
+
+	// Add confidence qualifier for top moves
+	if rank == 1 {
+		if confidence < de.confidenceThreshold {
+			explanation += fmt.Sprintf("(Low confidence: %.1f%% < %.1f%% threshold) ",
+				confidence*100, de.confidenceThreshold*100)
+		} else if confidence >= 0.90 {
+			explanation += fmt.Sprintf("(Very confident: %.1f%%) ", confidence*100)
+		}
+	}
+
+	// Tactical hints for top move
+	if rank == 1 && move != "" {
+		tactical := de.detectTactical(move, nil)
+		if tactical != "" {
+			explanation += tactical + ". "
+		}
+	}
+
+	return explanation
+}
+
+// categorizeMove categorizes a move based on confidence (legacy method kept for compatibility)
 func (de *DecisionEngine) categorizeMove(confidence float64) string {
 	switch {
 	case confidence >= 0.80:
@@ -215,22 +282,10 @@ func (de *DecisionEngine) categorizeMove(confidence float64) string {
 	}
 }
 
-// explainMove generates explanation for a move
+// explainMove generates explanation for a move (legacy method kept for compatibility)
 func (de *DecisionEngine) explainMove(confidence float64, rank int) string {
-	switch {
-	case rank == 1 && confidence >= 0.80:
-		return "Strong move with high confidence"
-	case rank == 1 && confidence >= 0.60:
-		return "Solid move, recommended"
-	case rank == 1 && confidence >= 0.40:
-		return "Moderate choice, consider alternatives"
-	case rank == 1:
-		return "Low confidence, position may be complex"
-	case rank <= 3:
-		return fmt.Sprintf("Alternative #%d - viable option", rank)
-	default:
-		return fmt.Sprintf("Lower priority option (rank #%d)", rank)
-	}
+	patterns := []string{}
+	return de.generateRichExplanation(confidence, rank, "", patterns)
 }
 
 // GetStatistics returns engine statistics
@@ -454,7 +509,7 @@ func (mf *MoveFormatter) FormatMove(move string) string {
 	return fmt.Sprintf("Move from %s to %s", from, to)
 }
 
-// FormatMoveWithPiece formats move with piece information (placeholder)
+// FormatMoveWithPiece formats move with piece information with rich context
 func (mf *MoveFormatter) FormatMoveWithPiece(move string, pieceType string) string {
 	if pieceType == "" {
 		return mf.FormatMove(move)
@@ -464,8 +519,187 @@ func (mf *MoveFormatter) FormatMoveWithPiece(move string, pieceType string) stri
 		return move
 	}
 
+	from := move[0:2]
 	to := move[2:4]
-	return fmt.Sprintf("Move %s to %s", pieceType, to)
+
+	// Map piece abbreviations to names
+	pieceNames := map[string]string{
+		"P": "Pawn", "N": "Knight", "B": "Bishop",
+		"R": "Rook", "Q": "Queen", "K": "King",
+		"p": "pawn", "n": "knight", "b": "bishop",
+		"r": "rook", "q": "queen", "k": "king",
+	}
+
+	pieceName := pieceNames[pieceType]
+	if pieceName == "" {
+		pieceName = pieceType
+	}
+
+	return fmt.Sprintf("%s: %s → %s", pieceName, from, to)
+}
+
+// GenerateMoveExplanation creates a detailed explanation for a move
+func (de *DecisionEngine) GenerateMoveExplanation(move RankedMove, boardState []float64) string {
+	explanation := ""
+
+	// Confidence-based description
+	if move.Confidence > 0.9 {
+		explanation = "Strong tactical move. "
+	} else if move.Confidence > 0.7 {
+		explanation = "Solid positional move. "
+	} else if move.Confidence > 0.5 {
+		explanation = "Reasonable option. "
+	} else {
+		explanation = "Speculative move. "
+	}
+
+	// Detect move patterns
+	patterns := de.detectMovePatterns(move.Move, boardState)
+	if len(patterns) > 0 {
+		explanation += fmt.Sprintf("Pattern: %s. ", patterns[0])
+	}
+
+	// Tactical hints
+	tactical := de.detectTactical(move.Move, boardState)
+	if tactical != "" {
+		explanation += tactical + " "
+	}
+
+	// Confidence qualifier
+	if move.Confidence < de.confidenceThreshold {
+		explanation += "⚠️ Below confidence threshold. "
+	}
+
+	return explanation
+}
+
+// detectMovePatterns identifies common chess patterns in a move
+func (de *DecisionEngine) detectMovePatterns(move string, boardState []float64) []string {
+	if len(move) != 4 {
+		return nil
+	}
+
+	patterns := []string{}
+
+	fromFile := int(move[0] - 'a')
+	fromRank := int(move[1] - '1')
+	toFile := int(move[2] - 'a')
+	toRank := int(move[3] - '1')
+
+	fileDiff := abs(toFile - fromFile)
+	rankDiff := abs(toRank - fromRank)
+
+	// Detect move types
+	if fileDiff == 0 {
+		patterns = append(patterns, "Vertical advance")
+	} else if rankDiff == 0 {
+		patterns = append(patterns, "Lateral maneuver")
+	} else if fileDiff == rankDiff {
+		patterns = append(patterns, "Diagonal thrust")
+	}
+
+	// Detect special squares
+	centerSquares := map[string]bool{
+		"d4": true, "d5": true, "e4": true, "e5": true,
+	}
+	toSquare := move[2:4]
+	if centerSquares[toSquare] {
+		patterns = append(patterns, "Controls center")
+	}
+
+	// Detect advancing moves
+	if (fromRank < 4 && toRank >= 4) || (fromRank >= 4 && toRank < 4) {
+		patterns = append(patterns, "Advances position")
+	}
+
+	// Detect knight patterns
+	if (rankDiff == 2 && fileDiff == 1) || (rankDiff == 1 && fileDiff == 2) {
+		patterns = append(patterns, "Knight fork potential")
+	}
+
+	// Detect castling
+	if fromFile == 4 && (toFile == 2 || toFile == 6) { // King moving 2 squares
+		if fromRank == 0 || fromRank == 7 {
+			if toFile == 2 {
+				patterns = append(patterns, "Queenside castling")
+			} else {
+				patterns = append(patterns, "Kingside castling")
+			}
+		}
+	}
+
+	// Detect pawn advances
+	if fileDiff == 0 && rankDiff == 2 && (fromRank == 1 || fromRank == 6) {
+		patterns = append(patterns, "Pawn opening")
+	}
+
+	// Detect promotion squares
+	if toRank == 0 || toRank == 7 {
+		patterns = append(patterns, "Promotion threat")
+	}
+
+	return patterns
+}
+
+// detectTactical identifies tactical motifs
+func (de *DecisionEngine) detectTactical(move string, boardState []float64) string {
+	if len(move) != 4 {
+		return ""
+	}
+
+	toFile := int(move[2] - 'a')
+	toRank := int(move[3] - '1')
+
+	// Simple tactical hints based on destination
+	// (In production, analyze actual board state for captures, pins, forks, etc.)
+
+	// Check if moving to enemy territory
+	if toRank >= 5 { // White advancing deep
+		return "Aggressive advance into enemy territory"
+	} else if toRank <= 2 { // Black advancing deep
+		return "Defensive consolidation"
+	}
+
+	// Check edge moves (potentially defensive)
+	if toFile == 0 || toFile == 7 {
+		return "Flank operation"
+	}
+
+	return ""
+}
+
+// CategorizeMove assigns a category based on confidence and patterns
+func (de *DecisionEngine) CategorizeMove(confidence float64, patterns []string) string {
+	hasStrongPattern := false
+	for _, pattern := range patterns {
+		if pattern == "Controls center" || pattern == "Knight fork potential" || pattern == "Castling" {
+			hasStrongPattern = true
+			break
+		}
+	}
+
+	if confidence >= 0.9 {
+		return "Excellent"
+	} else if confidence >= 0.7 {
+		if hasStrongPattern {
+			return "Good"
+		}
+		return "Solid"
+	} else if confidence >= 0.5 {
+		return "Fair"
+	} else if confidence >= 0.3 {
+		return "Risky"
+	} else {
+		return "Speculative"
+	}
+}
+
+// Helper function
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // FormatDecision formats a complete decision for display
@@ -491,123 +725,6 @@ func (mf *MoveFormatter) FormatDecision(decision *Decision) string {
 	}
 
 	result += fmt.Sprintf("\nInference Time: %.2f ms\n", decision.InferenceMs)
-
-	return result
-}
-
-// ============================================================================
-// COMPATIBILITY LAYER - Legacy API support for cmd/partner/main.go
-// ============================================================================
-
-// Prediction represents a simple prediction (legacy compatibility)
-type Prediction struct {
-	Move       string
-	Confidence float64
-	Timestamp  time.Time
-}
-
-// Advisor provides advice with history tracking (legacy compatibility)
-type Advisor struct {
-	engine     *DecisionEngine
-	history    *DecisionHistory
-	lastAdvice *Advice
-	mu         sync.RWMutex
-}
-
-// Advice represents advice with alternatives (legacy compatibility)
-type Advice struct {
-	PrimaryMove  string
-	Alternatives []string
-	Confidence   float64
-	Timestamp    time.Time
-	Explanation  string
-}
-
-// NewEngine creates a basic decision engine (legacy compatibility)
-// This is a wrapper around NewDecisionEngine with default parameters
-func NewEngine(net *model.ChessNet, capturer *vision.Capturer, confidenceThreshold float64) *DecisionEngine {
-	logger, _ := zap.NewProduction()
-	return NewDecisionEngine(net, capturer, confidenceThreshold, 5, logger)
-}
-
-// NewAdvisor creates an advisor with history (legacy compatibility)
-func NewAdvisor(engine *DecisionEngine, historySize int) *Advisor {
-	return &Advisor{
-		engine:  engine,
-		history: NewDecisionHistory(historySize),
-	}
-}
-
-// GetAdvice returns advice based on current board state (legacy compatibility)
-func (a *Advisor) GetAdvice() (*Advice, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	decision, err := a.engine.MakeDecision()
-	if err != nil {
-		return nil, err
-	}
-
-	// Store in history
-	a.history.Add(decision)
-
-	// Build alternatives list
-	alternatives := make([]string, 0, len(decision.Alternatives))
-	for _, alt := range decision.Alternatives {
-		if len(alternatives) >= 3 {
-			break
-		}
-		alternatives = append(alternatives, alt.Move)
-	}
-
-	advice := &Advice{
-		PrimaryMove:  decision.TopMove.Move,
-		Alternatives: alternatives,
-		Confidence:   decision.TopMove.Confidence,
-		Timestamp:    decision.Timestamp,
-		Explanation:  decision.TopMove.Explanation,
-	}
-
-	a.lastAdvice = advice
-	return advice, nil
-}
-
-// GetLastAdvice returns the most recent advice (legacy compatibility)
-func (a *Advisor) GetLastAdvice() *Advice {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.lastAdvice
-}
-
-// GetHistory returns the decision history (legacy compatibility)
-func (a *Advisor) GetHistory() *DecisionHistory {
-	return a.history
-}
-
-// Statistics represents system statistics (legacy compatibility)
-type Statistics struct {
-	TotalPredictions   int
-	AverageConfidence  float64
-	SuccessfulCaptures int
-	FailedCaptures     int
-	AverageInferenceMs float64
-}
-
-// FormatAdvice formats advice for display (legacy compatibility)
-func FormatAdvice(advice *Advice) string {
-	result := fmt.Sprintf("Primary Move: %s\n", advice.PrimaryMove)
-	result += fmt.Sprintf("Confidence: %.1f%%\n", advice.Confidence*100)
-
-	if advice.Explanation != "" {
-		result += fmt.Sprintf("Explanation: %s\n", advice.Explanation)
-	}
-
-	if len(advice.Alternatives) > 0 {
-		result += "\nAlternatives:\n"
-		for i, alt := range advice.Alternatives {
-			result += fmt.Sprintf("  %d. %s\n", i+1, alt)
-		}
-	}
 
 	return result
 }

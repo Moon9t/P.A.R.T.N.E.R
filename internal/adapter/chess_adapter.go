@@ -378,3 +378,437 @@ func squareToAlgebraic(square int) string {
 
 	return string(rune('a'+file)) + string(rune('1'+rank))
 }
+
+// ===== Advanced Chess Features =====
+
+// ChessPosition represents a complete chess position with full game state
+type ChessPosition struct {
+	Board           [12][8][8]float32
+	WhiteToMove     bool
+	CastlingRights  CastlingRights
+	EnPassantSquare int // -1 if none
+	HalfMoveClock   int
+	FullMoveNumber  int
+}
+
+// CastlingRights tracks castling availability
+type CastlingRights struct {
+	WhiteKingSide  bool
+	WhiteQueenSide bool
+	BlackKingSide  bool
+	BlackQueenSide bool
+}
+
+// ParseFullFEN parses a complete FEN string including all game state
+func (c *ChessAdapter) ParseFullFEN(fen string) (*ChessPosition, error) {
+	parts := strings.Fields(fen)
+	if len(parts) < 4 {
+		return nil, fmt.Errorf("incomplete FEN string: %s", fen)
+	}
+
+	pos := &ChessPosition{
+		EnPassantSquare: -1,
+	}
+
+	// Parse piece placement
+	board, err := c.parseFEN(fen)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse board: %w", err)
+	}
+	pos.Board = board
+
+	// Parse active color
+	pos.WhiteToMove = (parts[1] == "w")
+
+	// Parse castling rights
+	castling := parts[2]
+	pos.CastlingRights = CastlingRights{
+		WhiteKingSide:  strings.Contains(castling, "K"),
+		WhiteQueenSide: strings.Contains(castling, "Q"),
+		BlackKingSide:  strings.Contains(castling, "k"),
+		BlackQueenSide: strings.Contains(castling, "q"),
+	}
+
+	// Parse en passant square
+	if parts[3] != "-" {
+		sq, err := algebraicToSquare(parts[3])
+		if err == nil {
+			pos.EnPassantSquare = sq
+		}
+	}
+
+	// Parse move counters if available
+	if len(parts) >= 5 {
+		fmt.Sscanf(parts[4], "%d", &pos.HalfMoveClock)
+	}
+	if len(parts) >= 6 {
+		fmt.Sscanf(parts[5], "%d", &pos.FullMoveNumber)
+	}
+
+	return pos, nil
+}
+
+// ToFEN converts a ChessPosition back to FEN string
+func (pos *ChessPosition) ToFEN() string {
+	var fen strings.Builder
+
+	// Piece placement
+	pieceChars := []rune{'P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'}
+
+	for rank := 0; rank < 8; rank++ {
+		emptyCount := 0
+		for file := 0; file < 8; file++ {
+			pieceFound := false
+			for ch := 0; ch < 12; ch++ {
+				if pos.Board[ch][rank][file] > 0 {
+					if emptyCount > 0 {
+						fen.WriteRune(rune('0' + emptyCount))
+						emptyCount = 0
+					}
+					fen.WriteRune(pieceChars[ch])
+					pieceFound = true
+					break
+				}
+			}
+			if !pieceFound {
+				emptyCount++
+			}
+		}
+		if emptyCount > 0 {
+			fen.WriteRune(rune('0' + emptyCount))
+		}
+		if rank < 7 {
+			fen.WriteRune('/')
+		}
+	}
+
+	// Active color
+	if pos.WhiteToMove {
+		fen.WriteString(" w ")
+	} else {
+		fen.WriteString(" b ")
+	}
+
+	// Castling rights
+	castling := ""
+	if pos.CastlingRights.WhiteKingSide {
+		castling += "K"
+	}
+	if pos.CastlingRights.WhiteQueenSide {
+		castling += "Q"
+	}
+	if pos.CastlingRights.BlackKingSide {
+		castling += "k"
+	}
+	if pos.CastlingRights.BlackQueenSide {
+		castling += "q"
+	}
+	if castling == "" {
+		castling = "-"
+	}
+	fen.WriteString(castling + " ")
+
+	// En passant
+	if pos.EnPassantSquare >= 0 {
+		fen.WriteString(squareToAlgebraic(pos.EnPassantSquare))
+	} else {
+		fen.WriteString("-")
+	}
+
+	// Move counters
+	fen.WriteString(fmt.Sprintf(" %d %d", pos.HalfMoveClock, pos.FullMoveNumber))
+
+	return fen.String()
+}
+
+// EvaluatePosition provides a simple material-based position evaluation
+func (c *ChessAdapter) EvaluatePosition(board [12][8][8]float32) PositionEval {
+	eval := PositionEval{
+		Material: make(map[string]int),
+	}
+
+	// Piece values (centipawns)
+	pieceValues := map[int]int{
+		0:  100,  // White Pawn
+		1:  320,  // White Knight
+		2:  330,  // White Bishop
+		3:  500,  // White Rook
+		4:  900,  // White Queen
+		5:  0,    // White King (not counted in material)
+		6:  -100, // Black Pawn
+		7:  -320, // Black Knight
+		8:  -330, // Black Bishop
+		9:  -500, // Black Rook
+		10: -900, // Black Queen
+		11: 0,    // Black King
+	}
+
+	pieceNames := []string{"P", "N", "B", "R", "Q", "K", "p", "n", "b", "r", "q", "k"}
+
+	totalMaterial := 0
+	pieceCount := make(map[int]int)
+
+	for ch := 0; ch < 12; ch++ {
+		count := 0
+		for r := 0; r < 8; r++ {
+			for f := 0; f < 8; f++ {
+				if board[ch][r][f] > 0 {
+					count++
+					totalMaterial += pieceValues[ch]
+				}
+			}
+		}
+		pieceCount[ch] = count
+		eval.Material[pieceNames[ch]] = count
+	}
+
+	eval.MaterialScore = totalMaterial
+
+	// Calculate game phase (opening, middlegame, endgame)
+	totalPieces := 0
+	for ch := 0; ch < 12; ch++ {
+		if ch != 5 && ch != 11 { // Exclude kings
+			totalPieces += pieceCount[ch]
+		}
+	}
+
+	if totalPieces >= 24 {
+		eval.GamePhase = "opening"
+	} else if totalPieces >= 12 {
+		eval.GamePhase = "middlegame"
+	} else {
+		eval.GamePhase = "endgame"
+	}
+
+	// Detect special positions
+	eval.IsEndgame = (totalPieces <= 10)
+	eval.HasQueens = (pieceCount[4] > 0 || pieceCount[10] > 0)
+
+	return eval
+}
+
+// PositionEval contains position evaluation details
+type PositionEval struct {
+	MaterialScore int            `json:"material_score"` // In centipawns
+	Material      map[string]int `json:"material"`       // Piece counts
+	GamePhase     string         `json:"game_phase"`     // "opening", "middlegame", "endgame"
+	IsEndgame     bool           `json:"is_endgame"`
+	HasQueens     bool           `json:"has_queens"`
+}
+
+// String returns human-readable evaluation
+func (pe PositionEval) String() string {
+	return fmt.Sprintf(
+		"Eval{Score: %+d cp, Phase: %s, Queens: %v}",
+		pe.MaterialScore,
+		pe.GamePhase,
+		pe.HasQueens,
+	)
+}
+
+// IsMoveLegal performs basic move legality check
+// Note: This is a simplified check. Full legal move validation requires chess engine integration
+func (c *ChessAdapter) IsMoveLegal(board [12][8][8]float32, fromSquare, toSquare int) (bool, string) {
+	if fromSquare < 0 || fromSquare >= 64 || toSquare < 0 || toSquare >= 64 {
+		return false, "squares out of bounds"
+	}
+
+	fromRank := fromSquare / 8
+	fromFile := fromSquare % 8
+	toRank := toSquare / 8
+	toFile := toSquare % 8
+
+	// Check if there's a piece on the from square
+	hasPiece := false
+	movingPieceChannel := -1
+	for ch := 0; ch < 12; ch++ {
+		if board[ch][fromRank][fromFile] > 0 {
+			hasPiece = true
+			movingPieceChannel = ch
+			break
+		}
+	}
+
+	if !hasPiece {
+		return false, "no piece on from square"
+	}
+
+	// Check if moving onto own piece
+	isWhite := movingPieceChannel < 6
+	for ch := 0; ch < 12; ch++ {
+		if board[ch][toRank][toFile] > 0 {
+			capturedIsWhite := ch < 6
+			if isWhite == capturedIsWhite {
+				return false, "cannot capture own piece"
+			}
+		}
+	}
+
+	// Basic movement pattern check
+	rankDiff := abs(toRank - fromRank)
+	fileDiff := abs(toFile - fromFile)
+
+	pieceType := movingPieceChannel % 6 // 0=Pawn, 1=Knight, 2=Bishop, 3=Rook, 4=Queen, 5=King
+
+	switch pieceType {
+	case 0: // Pawn
+		// Very simplified - doesn't check direction, en passant, etc.
+		if fileDiff > 1 || rankDiff > 2 {
+			return false, "invalid pawn move distance"
+		}
+
+	case 1: // Knight
+		if !((rankDiff == 2 && fileDiff == 1) || (rankDiff == 1 && fileDiff == 2)) {
+			return false, "invalid knight move"
+		}
+
+	case 2: // Bishop
+		if rankDiff != fileDiff {
+			return false, "bishop must move diagonally"
+		}
+
+	case 3: // Rook
+		if rankDiff != 0 && fileDiff != 0 {
+			return false, "rook must move along rank or file"
+		}
+
+	case 4: // Queen
+		if rankDiff != fileDiff && rankDiff != 0 && fileDiff != 0 {
+			return false, "invalid queen move"
+		}
+
+	case 5: // King
+		if rankDiff > 1 || fileDiff > 1 {
+			return false, "king can only move one square"
+		}
+	}
+
+	return true, "ok"
+}
+
+// GetTopKMoves returns the top K moves from a prediction with legal move filtering
+func (c *ChessAdapter) GetTopKMoves(pred tensor.Tensor, board [12][8][8]float32, k int) []MoveConfidence {
+	data := pred.Data().([]float64)
+
+	// Collect all moves with their probabilities
+	type moveProb struct {
+		index int
+		prob  float64
+		from  int
+		to    int
+	}
+
+	moves := make([]moveProb, 0, 4096)
+	for i := 0; i < 4096; i++ {
+		if data[i] > 0.001 { // Filter out very low probabilities
+			from := i / 64
+			to := i % 64
+			legal, _ := c.IsMoveLegal(board, from, to)
+			if legal {
+				moves = append(moves, moveProb{
+					index: i,
+					prob:  data[i],
+					from:  from,
+					to:    to,
+				})
+			}
+		}
+	}
+
+	// Sort by probability (descending)
+	for i := 0; i < len(moves); i++ {
+		for j := i + 1; j < len(moves); j++ {
+			if moves[j].prob > moves[i].prob {
+				moves[i], moves[j] = moves[j], moves[i]
+			}
+		}
+		if i >= k-1 {
+			break
+		}
+	}
+
+	// Extract top K
+	topK := make([]MoveConfidence, 0, k)
+	for i := 0; i < len(moves) && i < k; i++ {
+		move := squareToAlgebraic(moves[i].from) + squareToAlgebraic(moves[i].to)
+		topK = append(topK, MoveConfidence{
+			Move:       move,
+			FromSquare: moves[i].from,
+			ToSquare:   moves[i].to,
+			Confidence: moves[i].prob,
+			Rank:       i + 1,
+		})
+	}
+
+	return topK
+}
+
+// MoveConfidence represents a move with confidence score
+type MoveConfidence struct {
+	Move       string  `json:"move"`
+	FromSquare int     `json:"from_square"`
+	ToSquare   int     `json:"to_square"`
+	Confidence float64 `json:"confidence"`
+	Rank       int     `json:"rank"`
+}
+
+// String returns human-readable move confidence
+func (mc MoveConfidence) String() string {
+	return fmt.Sprintf("#%d %s (%.2f%%)", mc.Rank, mc.Move, mc.Confidence*100)
+}
+
+// GetSquareInfo returns information about a square
+func (c *ChessAdapter) GetSquareInfo(board [12][8][8]float32, square int) SquareInfo {
+	if square < 0 || square >= 64 {
+		return SquareInfo{Square: square, IsEmpty: true}
+	}
+
+	rank := square / 8
+	file := square % 8
+
+	info := SquareInfo{
+		Square:  square,
+		Rank:    rank,
+		File:    file,
+		Algebra: squareToAlgebraic(square),
+		IsEmpty: true,
+	}
+
+	// Check for piece
+	pieceNames := []string{"P", "N", "B", "R", "Q", "K", "p", "n", "b", "r", "q", "k"}
+	for ch := 0; ch < 12; ch++ {
+		if board[ch][rank][file] > 0 {
+			info.IsEmpty = false
+			info.Piece = pieceNames[ch]
+			info.PieceChannel = ch
+			info.IsWhite = (ch < 6)
+			break
+		}
+	}
+
+	// Square color
+	info.IsLightSquare = ((rank + file) % 2) == 0
+
+	return info
+}
+
+// SquareInfo contains detailed information about a chess square
+type SquareInfo struct {
+	Square        int    `json:"square"`  // 0-63
+	Rank          int    `json:"rank"`    // 0-7
+	File          int    `json:"file"`    // 0-7
+	Algebra       string `json:"algebra"` // "e4"
+	IsEmpty       bool   `json:"is_empty"`
+	Piece         string `json:"piece"`         // "P", "n", etc.
+	PieceChannel  int    `json:"piece_channel"` // 0-11
+	IsWhite       bool   `json:"is_white"`
+	IsLightSquare bool   `json:"is_light_square"`
+}
+
+// Helper function
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
