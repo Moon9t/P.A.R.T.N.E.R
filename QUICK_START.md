@@ -2,175 +2,191 @@
 
 **Predictive Analysis & Real-Time Neural Engine for Chess**
 
-## Status: ✅ Phase 6 Complete - Production Ready
+## Status: Phase 6 Complete - Production Ready
 
 All systems validated with real chess data from the internet.
 
 ---
 
-## 🚀 Quick Start (5 Minutes)
+## Quick Start (5 Minutes)
 
-### 1. Download Chess Games
+### 1. Build All Tools
 
 ```bash
-# Download Magnus Carlsen games from Lichess
+make build
+```
+
+### 2. Download or Prepare Chess Games
+
+```bash
+# Use included sample games
+ls data/sample_games.pgn
+
+# Or download Magnus Carlsen games from Lichess
 curl -L "https://lichess.org/api/games/user/DrNykterstein?max=20&pgnInJson=false&evals=false&clocks=false" \
      -o data/training/magnus_games.pgn
 ```
 
-### 2. Create Training Dataset
+### 3. Ingest PGN Data
 
 ```bash
 # Convert PGN to neural network training format
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 \
-  ./bin/ingest-pgn \
-    -pgn data/training/magnus_games.pgn \
-    -dataset data/chess_dataset.db
+./run.sh ingest-pgn --input data/sample_games.pgn --output data/positions.db
 ```
 
-### 3. Train the Model
+### 4. Train the Model
 
 ```bash
 # Train CNN for 50 epochs
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 \
-  ./bin/train-cnn \
-    -dataset data/chess_dataset.db \
-    -epochs 50 \
-    -batch-size 32 \
-    -lr 0.001
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50 --batch-size 64
 ```
 
-### 4. Test the Model
+### 5. Test the Model
 
 ```bash
-# Run inference test
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 \
-  ./bin/test-model \
-    -dataset data/chess_dataset.db \
-    -model models/chess_cnn.gob \
-    -samples 100
+# Run interactive CLI
+./run.sh partner
+# Select option 3 for inference
+
+# Or run live analysis
+./run.sh live-chess --model data/models/chess_model.gob
 ```
 
 ---
 
 ## Available Tools
 
-### Main Production CLI
+All tools are accessed through the `run.sh` wrapper script.
+
+### Interactive CLI
 
 ```bash
-# Observe mode - real-time predictions
-./bin/partner-cli -mode observe
-
-# Train mode - train from observations
-./bin/partner-cli -mode train -epochs 50
-
-# Analyze mode - test accuracy
-./bin/partner-cli -mode analyze
+# Main interactive interface
+./run.sh partner
 ```
 
-### Data Collection
+Menu options:
+1. View Dataset Stats
+2. Train Model
+3. Run Inference
+4. Export Data
+5. Clear Dataset
+
+### PGN Ingestion
 
 ```bash
-# Collect training data from screen
-./bin/collect-training-data -samples 1000 -fps 10
+# Import chess games from PGN files
+./run.sh ingest-pgn --input <pgn-file> --output <database-file>
 
-# Collect real-time observations
-./bin/collect-real -config config.json
+# Example
+./run.sh ingest-pgn --input data/sample_games.pgn --output data/positions.db
 ```
 
-### Training Tools
+### CNN Training
 
 ```bash
-# Train CNN on dataset
-./bin/train-cnn -dataset data/chess_dataset.db -epochs 50
+# Train the neural network
+./run.sh train-cnn --dataset <database> --model <model-file> --epochs <num> --batch-size <size>
 
-# Advanced training with self-improvement
-./bin/observe-train -sessions 10 -epochs 20
+# Example
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50 --batch-size 64
 ```
 
-### Testing Tools
+Flags:
+- `--dataset` - Path to training dataset
+- `--model` - Path to save/load model
+- `--epochs` - Number of training epochs
+- `--batch-size` - Batch size for training
+- `--lr` - Learning rate
+- `--load` - Load existing model before training
+- `--test` - Test mode: just run inference
+
+### Live Chess Analysis
 
 ```bash
-# Test model accuracy
-./bin/test-model -dataset data/chess_dataset.db -samples 100
+# Real-time board capture and predictions
+./run.sh live-chess --model <model-file> --x <x> --y <y> --width <w> --height <h>
 
-# Test CNN architecture
-./bin/test-cnn
-
-# Test training pipeline
-./bin/test-training -samples 100 -epochs 10
+# Example
+./run.sh live-chess --model data/models/chess_model.gob --x 100 --y 100 --width 800 --height 800
 ```
 
-### Analysis Tools
+Flags:
+- `--model` - Trained model path
+- `--x`, `--y` - Screen capture position
+- `--width`, `--height` - Capture region size
+- `--fps` - Frames per second (default: 2)
+- `--top` - Number of top moves to show (default: 5)
+
+### Live Analysis Engine
 
 ```bash
-# Live game analysis
-./bin/live-analysis
-
-# Self-improvement demonstration
-./bin/self-improvement-demo
+# Advanced analysis with decision engine
+./run.sh live-analysis
 ```
 
 ---
 
-## 🎯 Common Workflows
+## Common Workflows
 
 ### Workflow 1: Train from Internet Data
 
 ```bash
-# 1. Download games
+# 1. Build tools
+make build
+
+# 2. Download games
 curl -L "https://lichess.org/api/games/user/DrNykterstein?max=100" \
-     -o magnus_games.pgn
+     -o data/training/magnus_games.pgn
 
-# 2. Ingest
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 \
-  ./bin/ingest-pgn -pgn magnus_games.pgn -dataset training.db
+# 3. Ingest PGN data
+./run.sh ingest-pgn --input data/training/magnus_games.pgn --output data/positions.db
 
-# 3. Train
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 \
-  ./bin/train-cnn -dataset training.db -epochs 50
+# 4. Train model
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50
 
-# 4. Test
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 \
-  ./bin/test-model -dataset training.db
+# 5. Test with interactive CLI
+./run.sh partner
 ```
 
-### Workflow 2: Collect from Screen
+### Workflow 2: Live Board Analysis
 
 ```bash
-# 1. Configure screen region in config.json
-nano config.json
+# 1. Configure screen region in configs/partner.json
+nano configs/partner.json
+# Update vision.screen_region with your board coordinates
 
-# 2. Start collection
-./bin/collect-training-data -samples 1000
+# 2. Train a model first (see Workflow 1)
 
-# 3. Train from observations
-./bin/partner-cli -mode train -epochs 50
-
-# 4. Analyze accuracy
-./bin/partner-cli -mode analyze
-```
-
-### Workflow 3: Real-Time Observation
-
-```bash
-# 1. Configure system
-cp configs/partner.json config.json
-nano config.json  # Adjust screen region
-
-# 2. Start observing
-./bin/partner-cli -mode observe
+# 3. Run live analysis
+./run.sh live-chess --model data/models/chess_model.gob --x 100 --y 100 --width 800 --height 800
 
 # System will:
-# - Capture screen
+# - Capture screen region
 # - Detect chess board
-# - Predict moves
-# - Display in natural language
+# - Predict top moves
+# - Display with confidence scores
+```
+
+### Workflow 3: Batch Training on Multiple PGN Files
+
+```bash
+# 1. Ingest multiple files into same database
+./run.sh ingest-pgn --input data/training/Hikaru_games.pgn --output data/positions.db
+./run.sh ingest-pgn --input data/training/Carlsen.pgn --output data/positions.db
+./run.sh ingest-pgn --input data/sample_games.pgn --output data/positions.db
+
+# 2. Train on combined dataset
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 100 --batch-size 128
+
+# 3. Validate accuracy
+./run.sh partner
+# Select option 3 for inference testing
 ```
 
 ---
 
-## 📁 Data Sources
+## Data Sources
 
 ### Lichess Database (Recommended)
 
@@ -202,7 +218,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### config.json Structure
 
@@ -241,9 +257,11 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 
 ### Environment Variables
 
+The `run.sh` script automatically sets required environment variables:
+
 ```bash
-# Required for Gorgonia (GC safety)
-export ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25
+# Automatically set by run.sh
+ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25
 
 # Optional: OpenCV libraries path
 export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
@@ -252,9 +270,15 @@ export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 export LOG_LEVEL=info  # debug, info, warn, error
 ```
 
+For manual builds without run.sh:
+```bash
+export ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25
+go build -o bin/partner cmd/partner-cli/main.go
+```
+
 ---
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Build Issues
 
@@ -287,11 +311,13 @@ go test ./internal/vision/...
 ### Training Issues
 
 ```bash
-# Check dataset
-./bin/ingest-pgn -dataset data/chess_dataset.db -stats
+# Check dataset with interactive CLI
+./run.sh partner
+# Select option 1 to view dataset stats
 
-# Verify model
-./bin/test-model -model models/chess_cnn.gob -test
+# Test model inference
+./run.sh partner
+# Select option 3 for inference testing
 
 # Check logs
 tail -f logs/partner.log
@@ -301,10 +327,10 @@ tail -f logs/partner.log
 
 ```bash
 # Reduce batch size
-./bin/train-cnn -batch-size 16
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --batch-size 16
 
-# Use fewer workers
-./bin/ingest-pgn -workers 2
+# Reduce capture FPS for live analysis
+./run.sh live-chess --model data/models/chess_model.gob --fps 1
 
 # Monitor resources
 htop  # Watch CPU/memory
@@ -312,7 +338,7 @@ htop  # Watch CPU/memory
 
 ---
 
-## 📈 Performance Expectations
+## Performance Expectations
 
 ### Dataset Size vs Accuracy
 
@@ -348,14 +374,14 @@ htop  # Watch CPU/memory
 
 ---
 
-## 🎓 Learning Resources
+## Learning Resources
 
 ### Understanding the System
 
-1. **Architecture:** See `docs/ARCHITECTURE.md`
-2. **CNN Design:** See `docs/CNN_ARCHITECTURE.md`
-3. **Phase History:** See `PHASE*.md` files
-4. **API Docs:** See `internal/*/README.md`
+1. **Architecture:** See README.md Architecture section
+2. **Game Adapters:** See `docs/ADAPTER_SYSTEM.md`
+3. **Roadmap:** See `ROADMAP.md`
+4. **Main Documentation:** See `README.md`
 
 ### Chess AI Concepts
 
@@ -366,14 +392,14 @@ htop  # Watch CPU/memory
 
 ### External Resources
 
-- [Gorgonia Docs](https://gorgonia.org/docs/)
-- [GoCV Examples](https://gocv.io/getting-started/)
-- [Chess Programming Wiki](https://www.chessprogramming.org/)
-- [Lichess API](https://lichess.org/api)
+- Gorgonia Docs: <https://gorgonia.org/docs/>
+- GoCV Examples: <https://gocv.io/getting-started/>
+- Chess Programming Wiki: <https://www.chessprogramming.org/>
+- Lichess API: <https://lichess.org/api>
 
 ---
 
-## 🐛 Known Limitations
+## Known Limitations
 
 1. **Accuracy:** 2-5% with small datasets (expected)
    - **Solution:** Collect 10K+ positions
@@ -393,38 +419,39 @@ htop  # Watch CPU/memory
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 ### Immediate (This Week)
 
-1. ✅ ~~Complete end-to-end test~~ **DONE**
-2. ⬜ Collect 10K+ position dataset
-3. ⬜ Retrain with 100 epochs
-4. ⬜ Achieve 10%+ accuracy
+1. Complete end-to-end test (DONE)
+2. Collect 10K+ position dataset
+3. Train with 100+ epochs
+4. Achieve 10%+ accuracy
 
 ### Short-term (This Month)
 
-5. ⬜ Implement live board capture
-6. ⬜ Add opening book
-7. ⬜ Create web interface
-8. ⬜ Performance profiling
+5. Fine-tune live board capture
+6. Add opening book integration
+7. Create web interface
+8. Performance profiling and optimization
 
 ### Long-term (This Year)
 
-9. ⬜ Self-play training
-10. ⬜ Value network addition
-11. ⬜ Tournament testing
-12. ⬜ Public deployment
+9. Self-play training implementation
+10. Value network addition
+11. Tournament testing
+12. Public deployment
 
 ---
 
-## 📞 Support
+## Support
 
 ### Documentation
 
 - Main README: `README.md`
-- Test Report: `END_TO_END_TEST_REPORT.md`
-- Phase Docs: `PHASE*.md`
+- Roadmap: `ROADMAP.md`
+- Changelog: `CHANGELOG.md`
+- Adapter System: `docs/ADAPTER_SYSTEM.md`
 
 ### Logs
 
@@ -447,17 +474,17 @@ go test ./... -cover
 
 ---
 
-## 🎉 Success Metrics
+## Success Metrics
 
 **Phase 6 Achievements:**
 
-- ✅ Downloaded real chess data from internet
-- ✅ Trained CNN from scratch
-- ✅ Model predicted moves correctly
-- ✅ All 19 tools operational
-- ✅ 17/17 unit tests passing
+- Downloaded real chess data from internet
+- Trained CNN from scratch
+- Model predicted moves correctly
+- All tools operational
+- Unit tests passing
 
-**System Status:** ✅ **PRODUCTION READY**
+**System Status: PRODUCTION READY**
 
 ---
 

@@ -1,17 +1,19 @@
 # P.A.R.T.N.E.R Development Roadmap
 
-## ✅ Phase 0: Foundation (COMPLETE)
-- [x] Core CNN model implementation
-- [x] Data ingestion pipeline (PGN → BoltDB)
-- [x] Training system with augmentation
-- [x] Self-improvement loop
-- [x] Vision capture system
-- [x] Live chess analysis
-- [x] Build automation
-- [x] Integration testing
-- [x] Documentation
+## Phase 0: Foundation (COMPLETE)
 
-## 🚀 Phase 1: Production Readiness (NEXT - November 2025)
+Completed features:
+- Core CNN model implementation
+- Data ingestion pipeline (PGN to BoltDB)
+- Training system with augmentation
+- Self-improvement loop
+- Vision capture system
+- Live chess analysis
+- Build automation
+- Integration testing
+- Documentation
+
+## Phase 1: Production Readiness (NEXT - November 2025)
 
 ### 1.1 Model Improvements
 - [ ] **Add Batch Normalization**
@@ -62,7 +64,7 @@
   - Faster inference
   - Files: `internal/model/utils.go`
 
-## 🎯 Phase 2: Advanced Features (December 2025)
+## Phase 2: Advanced Features (December 2025)
 
 ### 2.1 Position Evaluation
 - [ ] **Value Network**
@@ -121,7 +123,7 @@
   - Capture region picker
   - Files: `internal/iface/config_ui.go`
 
-## 🔬 Phase 3: Research & Experimentation (Q1 2026)
+## Phase 3: Research & Experimentation (Q1 2026)
 
 ### 3.1 Self-Play Training
 - [ ] **Self-Play Engine**
@@ -161,7 +163,7 @@
   - Gradually increase difficulty
   - Files: `internal/training/curriculum.go`
 
-## 🌐 Phase 4: Distribution & Community (Q2 2026)
+## Phase 4: Distribution & Community (Q2 2026)
 
 ### 4.1 Packaging
 - [ ] **Binary Releases**
@@ -221,7 +223,7 @@
 - **Active Users**: 500+
 - **Contributions**: 10+ contributors
 
-## 🛠️ Technical Debt & Maintenance
+## Technical Debt & Maintenance
 
 ### Code Quality
 - [ ] Add comprehensive unit tests (>80% coverage)
@@ -241,7 +243,7 @@
 - [ ] License compliance check
 - [ ] Dependency updates automation
 
-## 💡 Research Ideas (Future)
+## Research Ideas (Future)
 
 ### Advanced Architectures
 - Attention mechanisms (Transformers)
@@ -261,46 +263,58 @@
 - Opening preparation helper
 - Puzzle solver
 
-## 🎯 Immediate Next Steps (This Week)
+## Immediate Next Steps (This Week)
 
 1. **Collect Training Data**
    ```bash
-   # Download 10,000 games
+   # Download games from Lichess
+   curl -L "https://lichess.org/api/games/user/DrNykterstein?max=100" -o data/training/games.pgn
+   
+   # Or download larger dataset
    wget https://database.lichess.org/standard/lichess_db_standard_rated_2024-10.pgn.zst
    unzstd lichess_db_standard_rated_2024-10.pgn.zst
-   head -n 200000 lichess_db_standard_rated_2024-10.pgn > training_data.pgn
+   head -n 200000 lichess_db_standard_rated_2024-10.pgn > data/training/training_data.pgn
    ```
 
 2. **Train Initial Model**
    ```bash
-   ./run.sh ingest-pgn --input training_data.pgn --output data/positions.db
-   ./run.sh train-cnn --dataset data/positions.db --epochs 100 --batch-size 32
+   # Build tools
+   make build
+   
+   # Ingest data
+   ./run.sh ingest-pgn --input data/training/training_data.pgn --output data/positions.db
+   
+   # Train model
+   ./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 100 --batch-size 64
    ```
 
 3. **Validate Performance**
    ```bash
-   ./run.sh test-model
+   # Test with interactive CLI
+   ./run.sh partner
+   # Select option 3 for inference
+   
+   # Run integration tests
    make test-integration
    ```
 
-4. **Start Self-Improvement**
+4. **Test Live Analysis**
    ```bash
-   ./run.sh self-improvement --observations 1000
+   # Run live chess analysis
+   ./run.sh live-chess --model data/models/chess_model.gob
+   
+   # Or use advanced analysis
+   ./run.sh live-analysis
    ```
 
-5. **Test Live Analysis**
-   ```bash
-   make run-live-chess
-   ```
-
-## 📅 Timeline Estimate
+## Timeline Estimate
 
 - **Phase 1**: 4-6 weeks (November-December 2025)
 - **Phase 2**: 2-3 months (December 2025-February 2026)
 - **Phase 3**: 3-4 months (Q1 2026)
 - **Phase 4**: Ongoing (Q2 2026+)
 
-## 🤝 Contribution Areas
+## Contribution Areas
 
 Looking for contributors to help with:
 1. Model architecture improvements
@@ -310,10 +324,10 @@ Looking for contributors to help with:
 5. Multi-game adapters
 6. Web interface development
 
----
+## Current Status
 
-**Current Status**: Phase 0 Complete ✅  
+**Phase**: Phase 0 Complete  
 **Next Milestone**: Phase 1.1 - Model Improvements  
 **Target Date**: End of November 2025
 
-**Get Started**: Run `make demo` to see current capabilities!
+**Get Started**: See QUICK_START.md for setup instructions
