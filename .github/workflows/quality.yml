@@ -22,7 +22,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.25'
+        go-version: '1.21.x'
 
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v6
@@ -41,7 +41,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.25'
+        go-version: '1.21.x'
 
     - name: Check formatting
       run: |
@@ -81,7 +81,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.25'
+        go-version: '1.21.x'
 
     - name: Check for vulnerabilities
       run: |
