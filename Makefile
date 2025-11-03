@@ -13,6 +13,8 @@ all: clean deps build
 build:
 	@echo "Building P.A.R.T.N.E.R tools..."
 	@mkdir -p $(BUILD_DIR)
+	@echo "  partner (CLI)..."
+	@go build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/partner cmd/partner-cli/main.go
 	@echo "  train-cnn..."
 	@go build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/train-cnn cmd/train-cnn/main.go
 	@echo "  ingest-pgn..."
