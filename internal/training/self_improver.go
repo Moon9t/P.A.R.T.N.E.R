@@ -256,7 +256,7 @@ func (si *SelfImprover) Train() error {
 	if err != nil {
 		return fmt.Errorf("training failed: %w", err)
 	}
-	
+
 	batchAccuracy := float64(correct) / float64(len(entries)) * 100
 	log.Printf("Training complete: loss=%.4f, batch_accuracy=%.2f%% (%d/%d correct)",
 		loss, batchAccuracy, correct, len(entries))

@@ -324,9 +324,7 @@ func predictMoves(cnn *model.ChessCNN, tensor [12][8][8]float32, topK int) ([]Mo
 
 	// Convert to model.MovePrediction format for filtering
 	modelPreds := make([]model.MovePrediction, len(predictions))
-	for i, pred := range predictions {
-		modelPreds[i] = pred
-	}
+	copy(modelPreds, predictions)
 
 	// Filter out illegal moves
 	legalPreds := model.FilterIllegalMoves(modelPreds, tensor)

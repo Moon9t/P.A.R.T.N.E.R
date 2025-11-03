@@ -1,18 +1,18 @@
 package main
 
 import (
-"flag"
-"fmt"
-"log"
-"os"
-"os/signal"
-"strings"
-"syscall"
-"time"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 
-"github.com/thyrook/partner/internal/data"
-"github.com/thyrook/partner/internal/model"
-"github.com/thyrook/partner/internal/training"
+	"github.com/thyrook/partner/internal/data"
+	"github.com/thyrook/partner/internal/model"
+	"github.com/thyrook/partner/internal/training"
 )
 
 func main() {
@@ -106,7 +106,7 @@ func run(imp *training.SelfImprover, cnn *model.ChessCNN, ds *data.Dataset, maxO
 		for _, e := range entries {
 			board, _ := data.FlatArrayToTensor(e.StateTensor)
 			preds, _ := cnn.Predict(board, 3)
-			
+
 			if len(preds) == 0 {
 				continue
 			}
@@ -155,6 +155,6 @@ func showStats(imp *training.SelfImprover) {
 	fmt.Println(strings.Repeat("─", 50))
 	fmt.Printf("Cycles: %d | Buffer: %d\n", s.TotalCycles, b.TotalEntries)
 	fmt.Printf("Accuracy: %.1f%% → %.1f%% (Δ%+.1f%%)\n",
-s.BaselineAccuracy*100, s.CurrentAccuracy*100, m.AbsoluteImprovement*100)
+		s.BaselineAccuracy*100, s.CurrentAccuracy*100, m.AbsoluteImprovement*100)
 	fmt.Println(strings.Repeat("─", 50))
 }

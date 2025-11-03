@@ -1,16 +1,16 @@
 package main
 
 import (
-"flag"
-"fmt"
-"log"
-"os"
-"os/signal"
-"syscall"
-"time"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-"github.com/thyrook/partner/internal/model"
-"github.com/thyrook/partner/internal/vision"
+	"github.com/thyrook/partner/internal/model"
+	"github.com/thyrook/partner/internal/vision"
 )
 
 func main() {
@@ -66,7 +66,7 @@ func main() {
 
 	fmt.Println("🎥 Monitoring board (Ctrl+C to stop)")
 	fmt.Println()
-	
+
 	run(pipeline, cnn, tensorChan, *topK, sig)
 }
 
@@ -95,8 +95,8 @@ func run(p *vision.Pipeline, cnn *model.ChessCNN, ch <-chan vision.BoardStateTen
 		case <-sig:
 			fmt.Println("\n🛑 Stopping...")
 			stats := p.GetStats()
-			fmt.Printf("Frames: %d | Boards: %d | Changes: %d\n", 
-stats.FramesProcessed, boards, stats.ChangesDetected)
+			fmt.Printf("Frames: %d | Boards: %d | Changes: %d\n",
+				stats.FramesProcessed, boards, stats.ChangesDetected)
 			return
 
 		case t, ok := <-ch:
@@ -105,7 +105,7 @@ stats.FramesProcessed, boards, stats.ChangesDetected)
 			}
 
 			boards++
-			
+
 			if time.Since(lastTime) < 2*time.Second {
 				continue
 			}
@@ -125,7 +125,7 @@ stats.FramesProcessed, boards, stats.ChangesDetected)
 			fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 			fmt.Printf("📋 Board #%d at %s\n", boards, time.Unix(t.Timestamp, 0).Format("15:04:05"))
 			fmt.Println(vision.PrintBoardTensor(t.Tensor))
-			
+
 			fmt.Printf("\n🎯 Top %d Moves:\n", len(preds))
 			for i, p := range preds {
 				from := sq2alg(p.FromSquare)

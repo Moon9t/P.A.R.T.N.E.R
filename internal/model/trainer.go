@@ -105,10 +105,10 @@ func NewTrainer(config *TrainingConfig) (*Trainer, error) {
 	// Estimate total steps: epochs * (samples / batch_size)
 	// We'll update this dynamically during training
 	scheduler := NewCosineAnnealingScheduler(
-		config.LearningRate,    // base LR
+		config.LearningRate,      // base LR
 		config.LearningRate*0.01, // min LR (1% of base)
-		100,                     // warmup steps
-		1000,                    // total steps (will be updated)
+		100,                      // warmup steps
+		1000,                     // total steps (will be updated)
 	)
 
 	return &Trainer{
