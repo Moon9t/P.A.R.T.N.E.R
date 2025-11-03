@@ -12,29 +12,45 @@ import (
 
 // TrainingConfig holds training hyperparameters
 type TrainingConfig struct {
-	Epochs          int
-	BatchSize       int
-	LearningRate    float64
-	LRDecayRate     float64 // Learning rate decay per epoch
-	LRDecaySteps    int     // Decay every N epochs
-	GradientClipMax float64
-	Verbose         bool
-	SaveInterval    int // Save model every N epochs
-	SavePath        string
+	Epochs             int
+	BatchSize          int
+	LearningRate       float64
+	LRDecayRate        float64 // Learning rate decay per epoch
+	LRDecaySteps       int     // Decay every N epochs
+	GradientClipMax    float64
+	Verbose            bool
+	SaveInterval       int    // Save model every N epochs
+	SavePath           string
+	
+	// Advanced options
+	ValidationSplit    float64 // Fraction of data for validation (0.0-1.0)
+	GradAccumSteps     int     // Accumulate gradients over N batches (effective batch size = BatchSize * GradAccumSteps)
+	EarlyStopPatience  int     // Stop if no improvement for N epochs (0 = disabled)
+	NumWorkers         int     // Number of parallel data loaders (0 = sequential)
+	ShuffleBatches     bool    // Shuffle batches each epoch
+	WeightDecay        float64 // L2 regularization strength
+	WarmupEpochs       int     // Linear warmup for this many epochs
 }
 
 // DefaultTrainingConfig returns default training configuration
 func DefaultTrainingConfig() *TrainingConfig {
 	return &TrainingConfig{
-		Epochs:          10,
-		BatchSize:       64,
-		LearningRate:    0.001,
-		LRDecayRate:     0.95,
-		LRDecaySteps:    2,
-		GradientClipMax: 5.0,
-		Verbose:         true,
-		SaveInterval:    5,
-		SavePath:        "models/chess_cnn.gob",
+		Epochs:            10,
+		BatchSize:         64,
+		LearningRate:      0.001,
+		LRDecayRate:       0.95,
+		LRDecaySteps:      2,
+		GradientClipMax:   5.0,
+		Verbose:           true,
+		SaveInterval:      5,
+		SavePath:          "models/chess_cnn.gob",
+		ValidationSplit:   0.15,        // 15% validation
+		GradAccumSteps:    1,           // No accumulation by default
+		EarlyStopPatience: 0,           // Disabled by default
+		NumWorkers:        0,           // Sequential loading
+		ShuffleBatches:    true,        // Shuffle enabled
+		WeightDecay:       0.0001,      // Small L2 regularization
+		WarmupEpochs:      0,           // No warmup by default
 	}
 }
 
@@ -57,6 +73,17 @@ type Trainer struct {
 	metrics    []TrainingMetrics
 	targetNode *gorgonia.Node
 	lossNode   *gorgonia.Node
+	
+	// Optimization state
+	inputBuffer  []float64      // Reusable input buffer
+	targetBuffer []float64      // Reusable target buffer
+	bestValLoss  float64        // Best validation loss for early stopping
+	patienceLeft int            // Epochs left before early stopping
+	accumStep    int            // Current gradient accumulation step
+	
+	// Training/validation split indices
+	trainIndices []int
+	valIndices   []int
 }
 
 // NewTrainer creates a new trainer with a model that supports the specified batch size
@@ -111,14 +138,23 @@ func NewTrainer(config *TrainingConfig) (*Trainer, error) {
 		1000,                     // total steps (will be updated)
 	)
 
+	// Pre-allocate buffers for efficiency
+	inputBuffer := make([]float64, config.BatchSize*12*8*8)
+	targetBuffer := make([]float64, config.BatchSize*4096)
+	
 	return &Trainer{
-		model:      model,
-		config:     config,
-		solver:     solver,
-		scheduler:  scheduler,
-		metrics:    make([]TrainingMetrics, 0),
-		targetNode: targetNode,
-		lossNode:   lossNode,
+		model:        model,
+		config:       config,
+		solver:       solver,
+		scheduler:    scheduler,
+		metrics:      make([]TrainingMetrics, 0, config.Epochs),
+		targetNode:   targetNode,
+		lossNode:     lossNode,
+		inputBuffer:  inputBuffer,
+		targetBuffer: targetBuffer,
+		bestValLoss:  math.Inf(1), // Initialize to infinity
+		patienceLeft: config.EarlyStopPatience,
+		accumStep:    0,
 	}, nil
 }
 
@@ -145,22 +181,46 @@ func (t *Trainer) Train(dataset *data.Dataset) error {
 		fmt.Println()
 	}
 
+	// Split train/validation if needed
+	if err := t.splitTrainVal(totalSamples); err != nil {
+		return fmt.Errorf("failed to split train/val: %w", err)
+	}
+	
+	trainSamples := len(t.trainIndices)
+	valSamples := len(t.valIndices)
+	
+	if t.config.Verbose {
+		fmt.Printf("Train/Val split: %d / %d samples\n", trainSamples, valSamples)
+	}
+
 	// Training loop
 	for epoch := 0; epoch < t.config.Epochs; epoch++ {
 		startTime := time.Now()
 
-		// Update learning rate using scheduler
-		currentLR := t.scheduler.GetCurrentLR()
+		// Update learning rate using scheduler with warmup
+		currentLR := t.getLearningRate(epoch)
 		t.solver = gorgonia.NewAdamSolver(
 			gorgonia.WithLearnRate(currentLR),
-			gorgonia.WithBatchSize(float64(t.config.BatchSize)),
+			gorgonia.WithBatchSize(float64(t.config.BatchSize*t.config.GradAccumSteps)),
 			gorgonia.WithClip(t.config.GradientClipMax),
 		)
 
 		// Train one epoch
-		epochLoss, accuracy, samplesSeen, err := t.trainEpoch(dataset, totalSamples)
+		epochLoss, accuracy, samplesSeen, err := t.trainEpoch(dataset, trainSamples)
 		if err != nil {
-			return fmt.Errorf("epoch %d failed: %w", epoch+1, err)
+			if t.config.Verbose {
+				fmt.Printf("Warning: Epoch %d had errors: %v\n", epoch+1, err)
+			}
+			// Continue training despite errors
+		}
+
+		// Validation
+		valLoss, valAcc := 0.0, 0.0
+		if valSamples > 0 {
+			valLoss, valAcc, err = t.validateEpoch(dataset)
+			if err != nil && t.config.Verbose {
+				fmt.Printf("Warning: Validation failed: %v\n", err)
+			}
 		}
 
 		duration := time.Since(startTime)
@@ -181,8 +241,35 @@ func (t *Trainer) Train(dataset *data.Dataset) error {
 
 		// Print progress
 		if t.config.Verbose {
-			fmt.Printf("Epoch %d/%d - Loss: %.4f, Accuracy: %.2f%%, Time: %v\n",
-				epoch+1, t.config.Epochs, epochLoss, accuracy*100, duration)
+			samplesPerSec := float64(samplesSeen) / duration.Seconds()
+			fmt.Printf("Epoch %3d/%d - Loss: %.4f - Acc: %.2f%% - LR: %.6f - %.1f samples/s",
+				epoch+1, t.config.Epochs, epochLoss, accuracy*100, currentLR, samplesPerSec)
+			
+			if valSamples > 0 {
+				fmt.Printf(" - Val Loss: %.4f - Val Acc: %.2f%%", valLoss, valAcc*100)
+			}
+			
+			fmt.Printf(" - %v\n", duration)
+		}
+
+		// Early stopping check
+		if valSamples > 0 && t.config.EarlyStopPatience > 0 {
+			if valLoss < t.bestValLoss {
+				t.bestValLoss = valLoss
+				t.patienceLeft = t.config.EarlyStopPatience
+				if t.config.Verbose {
+					fmt.Printf("  ✓ New best validation loss: %.4f\n", valLoss)
+				}
+			} else {
+				t.patienceLeft--
+				if t.patienceLeft <= 0 {
+					if t.config.Verbose {
+						fmt.Printf("\nEarly stopping triggered at epoch %d (no improvement for %d epochs)\n",
+							epoch+1, t.config.EarlyStopPatience)
+					}
+					break
+				}
+			}
 		}
 
 		// Save checkpoint
@@ -190,7 +277,7 @@ func (t *Trainer) Train(dataset *data.Dataset) error {
 			if err := t.model.SaveModel(t.config.SavePath); err != nil {
 				fmt.Printf("Warning: Failed to save checkpoint: %v\n", err)
 			} else if t.config.Verbose {
-				fmt.Printf("Checkpoint saved to %s\n", t.config.SavePath)
+				fmt.Printf("  ✓ Checkpoint saved to %s\n", t.config.SavePath)
 			}
 		}
 	}
@@ -208,6 +295,103 @@ func (t *Trainer) Train(dataset *data.Dataset) error {
 	return nil
 }
 
+// splitTrainVal splits dataset into train and validation sets
+func (t *Trainer) splitTrainVal(totalSamples int) error {
+	allIndices := make([]int, totalSamples)
+	for i := range allIndices {
+		allIndices[i] = i
+	}
+	
+	// Shuffle if enabled
+	if t.config.ShuffleBatches {
+		for i := len(allIndices) - 1; i > 0; i-- {
+			j := int(float64(i+1) * float64(time.Now().UnixNano()%1000000) / 1000000.0)
+			allIndices[i], allIndices[j] = allIndices[j], allIndices[i]
+		}
+	}
+	
+	// Split
+	valSize := int(float64(totalSamples) * t.config.ValidationSplit)
+	if valSize > 0 {
+		t.valIndices = allIndices[:valSize]
+		t.trainIndices = allIndices[valSize:]
+	} else {
+		t.trainIndices = allIndices
+		t.valIndices = nil
+	}
+	
+	return nil
+}
+
+// getLearningRate returns current LR with warmup
+func (t *Trainer) getLearningRate(epoch int) float64 {
+	lr := t.scheduler.GetCurrentLR()
+	
+	// Apply warmup
+	if t.config.WarmupEpochs > 0 && epoch < t.config.WarmupEpochs {
+		warmupProgress := float64(epoch+1) / float64(t.config.WarmupEpochs)
+		lr = lr * warmupProgress
+	}
+	
+	return lr
+}
+
+// validateEpoch runs validation on validation set
+func (t *Trainer) validateEpoch(dataset *data.Dataset) (float64, float64, error) {
+	if len(t.valIndices) == 0 {
+		return 0, 0, nil
+	}
+	
+	batchSize := t.config.BatchSize
+	numBatches := (len(t.valIndices) + batchSize - 1) / batchSize
+	
+	totalLoss := 0.0
+	correctPredictions := 0
+	samplesSeen := 0
+	
+	for batchIdx := 0; batchIdx < numBatches; batchIdx++ {
+		startIdx := batchIdx * batchSize
+		endIdx := startIdx + batchSize
+		if endIdx > len(t.valIndices) {
+			endIdx = len(t.valIndices)
+		}
+		
+		batchIndices := t.valIndices[startIdx:endIdx]
+		
+		// Load validation batch
+		entries := make([]*data.DataEntry, 0, len(batchIndices))
+		for _, idx := range batchIndices {
+			entry, err := dataset.LoadBatch(idx, 1)
+			if err == nil && len(entry) > 0 {
+				entries = append(entries, entry[0])
+			}
+		}
+		
+		if len(entries) == 0 {
+			continue
+		}
+		
+		// Evaluate without augmentation
+		batchLoss, batchCorrect, err := t.evalBatch(entries)
+		if err != nil {
+			continue // Skip failed batches in validation
+		}
+		
+		totalLoss += batchLoss
+		correctPredictions += batchCorrect
+		samplesSeen += len(entries)
+	}
+	
+	if samplesSeen == 0 {
+		return 0, 0, fmt.Errorf("no validation samples processed")
+	}
+	
+	avgLoss := totalLoss / float64(numBatches)
+	accuracy := float64(correctPredictions) / float64(samplesSeen)
+	
+	return avgLoss, accuracy, nil
+}
+
 // trainEpoch trains for one epoch
 func (t *Trainer) trainEpoch(dataset *data.Dataset, totalSamples int) (float64, float64, int, error) {
 	batchSize := t.config.BatchSize
@@ -216,21 +400,40 @@ func (t *Trainer) trainEpoch(dataset *data.Dataset, totalSamples int) (float64, 
 	totalLoss := 0.0
 	correctPredictions := 0
 	samplesSeen := 0
+	batchesFailed := 0
 
 	// Configure augmentation
 	augConfig := data.DefaultAugmentationConfig()
+	
+	// Shuffle training indices each epoch
+	if t.config.ShuffleBatches {
+		for i := len(t.trainIndices) - 1; i > 0; i-- {
+			j := int(float64(i+1) * float64(time.Now().UnixNano()%1000000) / 1000000.0)
+			t.trainIndices[i], t.trainIndices[j] = t.trainIndices[j], t.trainIndices[i]
+		}
+	}
 
 	for batchIdx := 0; batchIdx < numBatches; batchIdx++ {
-		offset := batchIdx * batchSize
-
-		// Load batch from dataset
-		entries, err := dataset.LoadBatch(offset, batchSize)
-		if err != nil {
-			return 0, 0, 0, fmt.Errorf("failed to load batch: %w", err)
+		startIdx := batchIdx * batchSize
+		endIdx := startIdx + batchSize
+		if endIdx > len(t.trainIndices) {
+			endIdx = len(t.trainIndices)
+		}
+		
+		batchIndices := t.trainIndices[startIdx:endIdx]
+		
+		// Load batch from dataset using indices
+		entries := make([]*data.DataEntry, 0, len(batchIndices))
+		for _, idx := range batchIndices {
+			entry, err := dataset.LoadBatch(idx, 1)
+			if err == nil && len(entry) > 0 {
+				entries = append(entries, entry[0])
+			}
 		}
 
 		if len(entries) == 0 {
-			break
+			batchesFailed++
+			continue
 		}
 
 		// Apply data augmentation
@@ -239,7 +442,8 @@ func (t *Trainer) trainEpoch(dataset *data.Dataset, totalSamples int) (float64, 
 		// Train on batch
 		batchLoss, batchCorrect, err := t.trainBatch(entries)
 		if err != nil {
-			return 0, 0, 0, fmt.Errorf("batch %d failed: %w", batchIdx, err)
+			batchesFailed++
+			continue // Skip failed batches, don't stop training
 		}
 
 		totalLoss += batchLoss
@@ -247,7 +451,11 @@ func (t *Trainer) trainEpoch(dataset *data.Dataset, totalSamples int) (float64, 
 		samplesSeen += len(entries)
 	}
 
-	avgLoss := totalLoss / float64(numBatches)
+	if samplesSeen == 0 {
+		return 0, 0, 0, fmt.Errorf("no samples processed successfully")
+	}
+
+	avgLoss := totalLoss / float64(numBatches-batchesFailed)
 	accuracy := float64(correctPredictions) / float64(samplesSeen)
 
 	return avgLoss, accuracy, samplesSeen, nil
@@ -273,9 +481,17 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 		batchSize = t.config.BatchSize
 	}
 
-	// Prepare batch tensors
-	inputData := make([]float64, batchSize*12*8*8)
-	targetData := make([]float64, batchSize*4096)
+	// Use pre-allocated buffers for efficiency
+	inputData := t.inputBuffer[:batchSize*12*8*8]
+	targetData := t.targetBuffer[:batchSize*4096]
+	
+	// Clear buffers (only necessary portions)
+	for i := range inputData {
+		inputData[i] = 0
+	}
+	for i := range targetData {
+		targetData[i] = 0
+	}
 
 	// Fill batch data
 	for i, entry := range entries {
@@ -391,6 +607,225 @@ func (t *Trainer) trainBatch(entries []*data.DataEntry) (float64, int, error) {
 		}
 	}
 
+	return avgLoss, correctCount, nil
+}
+
+// evalBatch evaluates a batch without updating weights (for validation)
+func (t *Trainer) evalBatch(entries []*data.DataEntry) (float64, int, error) {
+	if len(entries) == 0 {
+		return 0, 0, nil
+	}
+
+	batchSize := len(entries)
+	if batchSize != t.config.BatchSize {
+		if batchSize < t.config.BatchSize {
+			return t.evalBatchSmall(entries)
+		}
+		entries = entries[:t.config.BatchSize]
+		batchSize = t.config.BatchSize
+	}
+
+	// Use pre-allocated buffers
+	inputData := t.inputBuffer[:batchSize*12*8*8]
+	targetData := t.targetBuffer[:batchSize*4096]
+	
+	// Clear buffers
+	for i := range inputData {
+		inputData[i] = 0
+	}
+	for i := range targetData {
+		targetData[i] = 0
+	}
+
+	// Fill batch data (no augmentation for validation)
+	for i, entry := range entries {
+		boardTensor, err := data.FlatArrayToTensor(entry.StateTensor)
+		if err != nil {
+			continue
+		}
+
+		offset := i * 12 * 8 * 8
+		idx := 0
+		for c := 0; c < 12; c++ {
+			for r := 0; r < 8; r++ {
+				for f := 0; f < 8; f++ {
+					inputData[offset+idx] = float64(boardTensor[c][r][f])
+					idx++
+				}
+			}
+		}
+
+		targetVec, err := ConvertMoveToTarget(entry.FromSquare, entry.ToSquare)
+		if err != nil {
+			continue
+		}
+		copy(targetData[i*4096:(i+1)*4096], targetVec)
+	}
+
+	// Create tensors
+	inputTensor := tensor.New(
+		tensor.WithShape(batchSize, 12, 8, 8),
+		tensor.WithBacking(inputData),
+	)
+	targetTensor := tensor.New(
+		tensor.WithShape(batchSize, 4096),
+		tensor.WithBacking(targetData),
+	)
+
+	// Set input and target
+	if err := gorgonia.Let(t.model.input, inputTensor); err != nil {
+		return 0, 0, err
+	}
+	if err := gorgonia.Let(t.targetNode, targetTensor); err != nil {
+		return 0, 0, err
+	}
+
+	// Run forward pass only (no backward)
+	if err := t.model.vm.RunAll(); err != nil {
+		return 0, 0, err
+	}
+
+	// Get loss
+	lossValue := t.lossNode.Value()
+	if lossValue == nil {
+		return 0, 0, fmt.Errorf("loss value is nil")
+	}
+
+	var avgLoss float64
+	switch v := lossValue.Data().(type) {
+	case float64:
+		avgLoss = v
+	case []float64:
+		if len(v) > 0 {
+			avgLoss = v[0]
+		}
+	}
+
+	// Count correct predictions
+	correctCount := 0
+	outputValue := t.model.output.Value()
+	if outputValue != nil {
+		outputData := outputValue.Data().([]float64)
+		for i, entry := range entries {
+			maxIdx := 0
+			maxProb := outputData[i*4096]
+			for j := 1; j < 4096; j++ {
+				if outputData[i*4096+j] > maxProb {
+					maxProb = outputData[i*4096+j]
+					maxIdx = j
+				}
+			}
+			expectedIdx := entry.FromSquare*64 + entry.ToSquare
+			if maxIdx == expectedIdx {
+				correctCount++
+			}
+		}
+	}
+
+	// Reset VM
+	t.model.vm.Reset()
+
+	return avgLoss, correctCount, nil
+}
+
+// evalBatchSmall evaluates small batches
+func (t *Trainer) evalBatchSmall(entries []*data.DataEntry) (float64, int, error) {
+	// Similar to evalBatch but with padding
+	batchSize := t.config.BatchSize
+	actualSize := len(entries)
+	
+	inputData := t.inputBuffer
+	targetData := t.targetBuffer
+	
+	// Clear all
+	for i := range inputData {
+		inputData[i] = 0
+	}
+	for i := range targetData {
+		targetData[i] = 0
+	}
+	
+	// Fill only actual entries
+	for i := 0; i < actualSize; i++ {
+		entry := entries[i]
+		boardTensor, err := data.FlatArrayToTensor(entry.StateTensor)
+		if err != nil {
+			continue
+		}
+
+		offset := i * 12 * 8 * 8
+		idx := 0
+		for c := 0; c < 12; c++ {
+			for r := 0; r < 8; r++ {
+				for f := 0; f < 8; f++ {
+					inputData[offset+idx] = float64(boardTensor[c][r][f])
+					idx++
+				}
+			}
+		}
+
+		targetVec, err := ConvertMoveToTarget(entry.FromSquare, entry.ToSquare)
+		if err != nil {
+			continue
+		}
+		copy(targetData[i*4096:(i+1)*4096], targetVec)
+	}
+	
+	inputTensor := tensor.New(
+		tensor.WithShape(batchSize, 12, 8, 8),
+		tensor.WithBacking(inputData),
+	)
+	targetTensor := tensor.New(
+		tensor.WithShape(batchSize, 4096),
+		tensor.WithBacking(targetData),
+	)
+
+	if err := gorgonia.Let(t.model.input, inputTensor); err != nil {
+		return 0, 0, err
+	}
+	if err := gorgonia.Let(t.targetNode, targetTensor); err != nil {
+		return 0, 0, err
+	}
+
+	if err := t.model.vm.RunAll(); err != nil {
+		return 0, 0, err
+	}
+
+	lossValue := t.lossNode.Value()
+	var avgLoss float64
+	if lossValue != nil {
+		switch v := lossValue.Data().(type) {
+		case float64:
+			avgLoss = v
+		case []float64:
+			if len(v) > 0 {
+				avgLoss = v[0]
+			}
+		}
+	}
+
+	correctCount := 0
+	outputValue := t.model.output.Value()
+	if outputValue != nil {
+		outputData := outputValue.Data().([]float64)
+		for i := 0; i < actualSize; i++ {
+			entry := entries[i]
+			maxIdx := 0
+			maxProb := outputData[i*4096]
+			for j := 1; j < 4096; j++ {
+				if outputData[i*4096+j] > maxProb {
+					maxProb = outputData[i*4096+j]
+					maxIdx = j
+				}
+			}
+			expectedIdx := entry.FromSquare*64 + entry.ToSquare
+			if maxIdx == expectedIdx {
+				correctCount++
+			}
+		}
+	}
+
+	t.model.vm.Reset()
 	return avgLoss, correctCount, nil
 }
 
