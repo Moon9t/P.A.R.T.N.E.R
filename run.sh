@@ -11,17 +11,14 @@ if [ $# -eq 0 ]; then
     echo "Usage: ./run.sh <binary> [arguments]"
     echo ""
     echo "Available binaries:"
-    echo "  partner-cli       - Main CLI interface"
-    echo "  test-adapter      - Test game adapter system"
-    echo "  train-cnn         - Train CNN model"
-    echo "  test-model        - Test model implementation"
-    echo "  ingest-pgn        - Ingest PGN chess games"
-    echo "  live-analysis     - Live game analysis"
+    ls -1 bin/ 2>/dev/null | grep -v "\.log" | sed 's/^/  - /'
     echo ""
     echo "Examples:"
-    echo "  ./run.sh test-adapter"
-    echo "  ./run.sh partner-cli --help"
-    echo "  ./run.sh train-cnn --epochs=50"
+    echo "  ./run.sh ingest-pgn --input games.pgn --output data/positions.db"
+    echo "  ./run.sh train-cnn --dataset data/positions.db --epochs 50"
+    echo "  ./run.sh self-improvement --observations 100"
+    echo "  ./run.sh live-chess --model data/models/chess_cnn.bin"
+    echo "  ./run.sh test-model"
     exit 0
 fi
 

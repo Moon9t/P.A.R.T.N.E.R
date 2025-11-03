@@ -7,12 +7,14 @@ The P.A.R.T.N.E.R system has been successfully transformed into a **game-agnosti
 ## What Was Built
 
 ### 1. Core Interface (`internal/adapter/adapter.go`)
+
 - **GameAdapter interface** - 8 methods defining how any game interacts with the learning system
 - **AdapterFactory** - Registry-based factory for creating adapters by name
 - **BaseAdapter** - Common functionality including replay buffer (10,000 experience limit)
 - **Experience struct** - Stores state, action, reward, next state for learning
 
 ### 2. Chess Implementation (`internal/adapter/chess_adapter.go`)
+
 - **State encoding** - Supports 3 input formats:
   - Native tensor: `[12][8][8]float32`
   - FEN strings: `"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"`
@@ -28,7 +30,9 @@ The P.A.R.T.N.E.R system has been successfully transformed into a **game-agnosti
 - **Replay buffer** - Stores game experiences for training
 
 ### 3. Test Suite (`cmd/test-adapter/main.go`)
+
 Comprehensive test program validating:
+
 - ✅ Adapter creation and registration
 - ✅ State encoding (all formats)
 - ✅ State validation
@@ -38,7 +42,9 @@ Comprehensive test program validating:
 - ✅ Invalid input handling
 
 ### 4. Documentation (`docs/ADAPTER_SYSTEM.md`)
+
 Complete guide covering:
+
 - Architecture overview
 - Chess adapter usage examples
 - Creating new adapters (step-by-step)
@@ -73,7 +79,8 @@ Complete guide covering:
 
 ## How It Works
 
-### Before (Hard-coded):
+### Before (Hard-coded)
+
 ```go
 // Chess logic scattered everywhere
 board := parseBoard(input)
@@ -82,7 +89,8 @@ prediction := cnn.Predict(tensor)
 move := parseChessMove(prediction)  // Chess-specific
 ```
 
-### After (Adapter Pattern):
+### After (Adapter Pattern)
+
 ```go
 // Game-agnostic with dependency injection
 adapter := factory.Create("chess")  // Or "go", "poker", etc.
@@ -95,6 +103,7 @@ adapter.Feedback(correctMove)  // Store experience
 ## Usage Examples
 
 ### Simple Usage
+
 ```go
 import "github.com/thyrook/partner/internal/adapter"
 
@@ -117,6 +126,7 @@ chess.Feedback("d2d4")
 ```
 
 ### CLI Integration
+
 ```bash
 # Use chess adapter (default)
 partner --adapter=chess --mode=train
@@ -127,6 +137,7 @@ partner --adapter=poker --mode=train
 ```
 
 ### In Training Loop
+
 ```go
 adapter, _ := factory.Create(*adapterName)
 
@@ -148,12 +159,14 @@ for epoch := 0; epoch < epochs; epoch++ {
 ## Performance Impact
 
 **Overhead measurements:**
+
 - State encoding (FEN): ~0.1ms
 - Action encoding: ~0.01ms
 - Action decoding: ~0.01ms
 - Total overhead: **<1%** of training time
 
 **Memory usage:**
+
 - Adapter instance: ~1KB
 - Replay buffer (10,000 experiences): ~10MB
 - Total: Negligible for modern systems
@@ -161,21 +174,25 @@ for epoch := 0; epoch < epochs; epoch++ {
 ## Benefits Achieved
 
 ### 1. Game-Agnostic Architecture
+
 - Neural network code has **zero** game-specific logic
 - Add new games by implementing 8 interface methods
 - Same training/inference code for all games
 
 ### 2. Multiple Input Formats
+
 - Chess adapter accepts FEN, tensors, or maps
 - Flexible for different data sources
 - Easy integration with external tools
 
 ### 3. Experience Replay
+
 - Automatic experience storage in replay buffer
 - FIFO eviction when buffer is full
 - Ready for reinforcement learning
 
 ### 4. Clean Code
+
 - Clear separation of concerns
 - Easy to test (mock adapters)
 - Maintainable and extensible
@@ -185,6 +202,7 @@ for epoch := 0; epoch < epochs; epoch++ {
 To add a new game (e.g., Go, Poker, Shogi):
 
 **Step 1:** Define state/action dimensions
+
 ```go
 // For Go: 19x19 board, 3 planes (black, white, ko)
 stateDims: [3, 19, 19]
@@ -192,6 +210,7 @@ actionDims: [361]  // 19*19 + pass
 ```
 
 **Step 2:** Implement `GameAdapter` interface
+
 ```go
 type GoAdapter struct {
     adapter.BaseAdapter
@@ -209,6 +228,7 @@ func (g *GoAdapter) EncodeAction(action interface{}) (tensor.Tensor, error) {
 ```
 
 **Step 3:** Register adapter
+
 ```go
 func init() {
     adapter.GlobalRegistry.Register("go", func() adapter.GameAdapter {
@@ -218,6 +238,7 @@ func init() {
 ```
 
 **Step 4:** Use it!
+
 ```bash
 partner --adapter=go --mode=train
 ```
@@ -225,6 +246,7 @@ partner --adapter=go --mode=train
 ## Files Created/Modified
 
 ### New Files
+
 - `internal/adapter/adapter.go` (169 lines) - Core interface and factory
 - `internal/adapter/chess_adapter.go` (395 lines) - Chess implementation
 - `internal/adapter/car_adapter.go` (3 lines) - Placeholder (removed)
@@ -233,12 +255,14 @@ partner --adapter=go --mode=train
 - `docs/ADAPTER_SYSTEM.md` (400+ lines) - Complete documentation
 
 ### Modified Files
+
 - `Makefile` - Added `test-adapter` target
 - `cmd/partner-cli/main.go` - Added `--adapter` flag (needs fixing)
 
 ## Current Status
 
 ✅ **COMPLETE:**
+
 - Core interface designed and implemented
 - Chess adapter fully functional
 - Test suite passing all tests
@@ -246,30 +270,35 @@ partner --adapter=go --mode=train
 - Build system updated
 
 ⚠️ **NEEDS WORK:**
+
 - CLI integration has compilation errors (StorageTrainer API mismatch)
 - Adapter not yet used in actual training/inference loops
 
 ## Next Steps
 
 ### Immediate (Fix Integration)
+
 1. Fix `cmd/partner-cli/main.go` compilation errors
 2. Align with `StorageTrainer` API
 3. Integrate adapter into training loop
 4. Test with real chess data
 
 ### Short-term (Complete System)
+
 1. Use adapter in `live-analysis`
 2. Add adapter to inference engine
 3. Test replay buffer in training
 4. Measure performance with real data
 
 ### Medium-term (Enhance)
+
 1. Add more input format support
 2. Implement action masking (disable illegal moves)
 3. Add adapter persistence (save/load state)
 4. Create example notebooks
 
 ### Long-term (Expand)
+
 1. Implement Go adapter
 2. Implement Poker adapter
 3. Add state augmentation
@@ -320,26 +349,31 @@ ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/test-adapter
 ## Key Design Decisions
 
 ### 1. Interface-Based Design
+
 - Chose Go interfaces over inheritance
 - Enables compile-time polymorphism
 - Clean dependency injection
 
 ### 2. Factory Pattern
+
 - Registry-based adapter creation
 - Easy to add new adapters at runtime
 - Supports dynamic loading (future)
 
 ### 3. Flexible Input Formats
+
 - Multiple format support per adapter
 - Easier integration with external tools
 - User-friendly for different use cases
 
 ### 4. Replay Buffer in Base
+
 - Common functionality shared across games
 - Consistent experience storage
 - Ready for RL algorithms
 
 ### 5. Validation Built-In
+
 - Adapters validate their own states
 - Game-specific rules enforced
 - Better error messages
@@ -372,6 +406,7 @@ go build ./internal/adapter/...
 ```
 
 **Files to review:**
+
 - `internal/adapter/adapter.go` - Interface definition
 - `internal/adapter/chess_adapter.go` - Chess implementation
 - `cmd/test-adapter/main.go` - Test suite

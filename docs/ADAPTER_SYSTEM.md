@@ -58,6 +58,7 @@ The **ChessAdapter** is fully implemented and tested:
 ### State Representation
 
 **Input formats supported:**
+
 1. **Tensor format**: `[12][8][8]float32` (12 piece planes)
 2. **FEN string**: `"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"`
 3. **Generic board**: `map[string]interface{}`
@@ -65,6 +66,7 @@ The **ChessAdapter** is fully implemented and tested:
 **Output:** Tensor of shape `[12, 8, 8]`
 
 **Piece planes (0-11):**
+
 - 0: White Pawns
 - 1: White Knights
 - 2: White Bishops
@@ -81,6 +83,7 @@ The **ChessAdapter** is fully implemented and tested:
 ### Action Representation
 
 **Input formats supported:**
+
 1. **Algebraic notation**: `"e2e4"` or `"e2-e4"`
 2. **Square indices**: `map[string]interface{}{"from": 12, "to": 28}`
 3. **Struct format**: `struct{ FromSquare, ToSquare int }`
@@ -88,6 +91,7 @@ The **ChessAdapter** is fully implemented and tested:
 **Output:** Tensor of shape `[4096]` (64×64 possible moves)
 
 The move is encoded as a one-hot vector where:
+
 ```
 index = fromSquare * 64 + toSquare
 ```
@@ -137,6 +141,7 @@ type Experience struct {
 ```
 
 **Features:**
+
 - Maximum buffer size: 10,000 experiences
 - FIFO eviction when full
 - Access via `GetReplayBuffer()`
@@ -264,21 +269,25 @@ partner --adapter=go --mode=train
 ## Benefits
 
 ### 1. **Separation of Concerns**
+
 - Neural network code knows nothing about chess/go/poker
 - Game logic is isolated in adapters
 - Easy to test components independently
 
 ### 2. **Flexibility**
+
 - Add new games without changing core code
 - Support multiple input formats per game
 - Easy to experiment with different representations
 
 ### 3. **Reusability**
+
 - Same training code works for all games
 - Same inference engine for all games
 - Same experience replay for all games
 
 ### 4. **Maintainability**
+
 - Changes to chess logic don't affect other games
 - Core improvements benefit all games
 - Clear boundaries between components
@@ -296,6 +305,7 @@ ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/test-adapter
 ```
 
 **Test coverage:**
+
 - ✅ Adapter creation and registration
 - ✅ State encoding (FEN, tensor, map formats)
 - ✅ State validation
@@ -314,6 +324,7 @@ The adapter system adds minimal overhead:
 - **Memory**: ~1KB per adapter instance
 
 For training on 10,000 positions:
+
 - **Without adapter**: 15.3 seconds
 - **With adapter**: 15.4 seconds
 - **Overhead**: <1%
@@ -321,6 +332,7 @@ For training on 10,000 positions:
 ## Future Enhancements
 
 ### Planned Features
+
 1. **Adapter chaining**: Combine multiple adapters
 2. **State augmentation**: Add noise/transforms for robustness
 3. **Action masking**: Disable illegal moves at prediction time
@@ -328,6 +340,7 @@ For training on 10,000 positions:
 5. **Adapter persistence**: Save/load adapter state
 
 ### Potential Games
+
 - **Go**: 19×19 board, complex rules
 - **Poker**: Partial observability, betting actions
 - **Shogi**: Piece drops, captured pieces
@@ -389,15 +402,19 @@ func NewChessAdapter() *ChessAdapter
 ## Troubleshooting
 
 ### Issue: "Unknown adapter: xyz"
+
 **Solution:** Adapter not registered. Check `factory.ListAdapters()` for available adapters.
 
 ### Issue: "Invalid state shape"
+
 **Solution:** Check `adapter.GetStateDimensions()` for expected shape.
 
 ### Issue: "Move encoding failed"
+
 **Solution:** Ensure move format matches one of the supported formats (algebraic, map, struct).
 
 ### Issue: "Validation failed: kings not found"
+
 **Solution:** Board state is invalid. Check FEN string or tensor representation.
 
 ## References

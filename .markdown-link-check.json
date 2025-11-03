@@ -1,0 +1,13 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://database\\.lichess\\.org"
+    },
+    {
+      "pattern": "^https://www\\.ficsgames\\.org"
+    }
+  ],
+  "timeout": "20s",
+  "retryOn429": true,
+  "aliveStatusCodes": [200, 206]
+}

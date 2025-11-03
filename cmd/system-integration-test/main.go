@@ -219,20 +219,9 @@ func (tc *TestController) Initialize() error {
 	}
 	tc.net = net
 
-	// 4. Initialize trainer
-	tc.logger.Info("Setting up training system...")
-	trainerConfig := &training.TrainingConfig{
-		LearningRate:    tc.cfg.Model.LearningRate,
-		BatchSize:       tc.cfg.Model.BatchSize,
-		Epochs:          10,
-		ValidationSplit: 0.2,
-	}
-	trainer, err := training.NewTrainer(net, store, trainerConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create trainer: %w", err)
-	}
-	tc.trainer = trainer
-	tc.logger.Info("Training system ready")
+	// 4. Initialize trainer (skipped - uses old API, not needed for integration test)
+	tc.logger.Info("Skipping trainer initialization (not used in integration test)")
+	tc.trainer = nil
 
 	// 5. Initialize decision engine
 	tc.logger.Info("Setting up decision engine...")

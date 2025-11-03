@@ -38,7 +38,7 @@ func (p *PGNParser) ParsePGNReader(reader io.Reader) ([]*chess.Game, error) {
 
 	scanner := chess.NewScanner(reader)
 	gameCount := 0
-	
+
 	for scanner.Scan() {
 		gameCount++
 		game := scanner.Next()

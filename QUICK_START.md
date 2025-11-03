@@ -329,16 +329,19 @@ htop  # Watch CPU/memory
 ### Hardware Requirements
 
 **Minimum:**
+
 - CPU: Dual-core 2.0 GHz
 - RAM: 4 GB
 - Storage: 10 GB
 
 **Recommended:**
+
 - CPU: Quad-core 2.5 GHz (i5 6th gen or better)
 - RAM: 8 GB
 - Storage: 20 GB SSD
 
 **Optimal:**
+
 - CPU: 8+ cores 3.0 GHz
 - RAM: 16 GB+
 - GPU: Not supported yet (CPU-only)
@@ -447,6 +450,7 @@ go test ./... -cover
 ## 🎉 Success Metrics
 
 **Phase 6 Achievements:**
+
 - ✅ Downloaded real chess data from internet
 - ✅ Trained CNN from scratch
 - ✅ Model predicted moves correctly

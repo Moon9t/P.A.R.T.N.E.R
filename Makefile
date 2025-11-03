@@ -52,12 +52,30 @@ test-model: setup
 build-tools:
 	@echo "Building all tools..."
 	@mkdir -p $(BUILD_DIR)
-	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/partner-cli cmd/partner-cli/main.go
-	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/ingest-pgn cmd/ingest-pgn/main.go
-	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/train-cnn cmd/train-cnn/main.go
-	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/test-model cmd/test-model/main.go
-	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/test-adapter cmd/test-adapter/main.go
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/ingest-pgn ./cmd/ingest-pgn
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/train-cnn ./cmd/train-cnn
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/test-model ./cmd/test-model
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/self-improvement ./cmd/self-improvement-demo
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build -o $(BUILD_DIR)/live-chess ./cmd/live-chess
 	@echo "All tools built successfully!"
+
+# Run self-improvement system
+run-self-improve:
+	@echo "Running self-improvement system..."
+	@mkdir -p $(BUILD_DIR) data/models data/replays
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/self-improvement \
+		--model data/models/chess_cnn.bin \
+		--dataset data/positions.db \
+		--observations 100
+
+# Run live chess vision analysis
+run-live-chess:
+	@echo "Running live chess vision analysis..."
+	@mkdir -p $(BUILD_DIR) data/models
+	@ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/live-chess \
+		--model data/models/chess_cnn.bin \
+		--x 100 --y 100 --width 800 --height 800 \
+		--fps 2 --top 5
 
 # Test adapter system
 test-adapter:
@@ -110,27 +128,59 @@ lint:
 	@golangci-lint run
 	@echo "Lint complete"
 
+# Run quick start guide
+quick-start:
+	@./scripts/03-interactive-setup.sh
+
+# Run full workflow (requires PGN file)
+workflow:
+	@./scripts/05-complete-pipeline.sh
+
+# Run integration tests
+test-integration:
+	@echo "Running integration tests..."
+	@./scripts/06-integration-tests.sh
+
+# Check system status
+status:
+	@./scripts/02-system-status.sh
+
+# Run quick demo
+demo:
+	@./scripts/01-quick-demo.sh
+
+# Show next steps guide
+next:
+	@./scripts/04-production-ready.sh
+
 # Show help
 help:
 	@echo "P.A.R.T.N.E.R Makefile"
 	@echo ""
-	@echo "Usage:"
-	@echo "  make build          - Build the application"
-	@echo "  make build-tools    - Build all tools (partner-cli, train-cnn, etc.)"
-	@echo "  make test-adapter   - Test the game adapter system"
-	@echo "  make deps           - Install dependencies"
-	@echo "  make setup          - Create required directories"
-	@echo "  make clean          - Clean build artifacts"
-	@echo "  make run-advise     - Run in advise mode"
-	@echo "  make run-train      - Run in train mode"
-	@echo "  make run-watch      - Run in watch mode"
-	@echo "  make install        - Install to /usr/local/bin"
-	@echo "  make uninstall      - Uninstall from /usr/local/bin"
-	@echo "  make fmt            - Format code"
-	@echo "  make test           - Run tests"
-	@echo "  make help           - Show this help"
+	@echo "Quick Start:"
+	@echo "  make status            - Check system status and readiness"
+	@echo "  make demo              - Run quick 60-second demo"
+	@echo "  make next              - Production setup guide (recommended!)"
+	@echo "  make quick-start       - Interactive quick start guide"
+	@echo "  make workflow          - Run complete workflow (PGN → Train → Improve)"
+	@echo "  make test-integration  - Run integration tests"
 	@echo ""
-	@echo "Run binaries directly:"
-	@echo "  ./run.sh <binary>   - Run any binary with proper environment"
-	@echo "  ./run.sh test-adapter"
-	@echo "  ./run.sh partner-cli --help"
+	@echo "Build Commands:"
+	@echo "  make build             - Build the application"
+	@echo "  make build-tools       - Build all tools (ingest-pgn, train-cnn, etc.)"
+	@echo "  make clean             - Clean build artifacts"
+	@echo "  make deps              - Install dependencies"
+	@echo "  make setup             - Create required directories"
+	@echo ""
+	@echo "Run Commands:"
+	@echo "  make run-live-chess    - Run live chess vision analysis"
+	@echo "  make run-self-improve  - Run self-improvement system"
+	@echo ""
+	@echo "Development:"
+	@echo "  make fmt               - Format code"
+	@echo "  make lint              - Lint code"
+	@echo "  make test              - Run tests"
+	@echo ""
+	@echo "Installation:"
+	@echo "  make install           - Install to /usr/local/bin"
+	@echo "  make uninstall         - Uninstall from /usr/local/bin"

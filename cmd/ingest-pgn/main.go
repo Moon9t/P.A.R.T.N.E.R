@@ -90,7 +90,7 @@ func main() {
 	if *verify {
 		fmt.Println("Note: Automatic verification after ingestion is disabled.")
 		fmt.Println("      Successful ingestion means data is valid.")
-		fmt.Println("      To verify manually, use: ./run.sh ingest-pgn -stats -dataset=%s\n", *datasetPath)
+		fmt.Printf("      To verify manually, use: ./run.sh ingest-pgn -stats -dataset=%s\n", *datasetPath)
 	}
 
 	fmt.Println("Dataset ready for training!")

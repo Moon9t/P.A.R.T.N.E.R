@@ -4,6 +4,27 @@
 
 A production-grade AI system written entirely in Go that learns from watching gameplay (starting with chess) and becomes a visual partner that suggests moves based on what it observes.
 
+## 🚀 Quick Start
+
+Get started in 3 commands:
+
+```bash
+# 1. Run the interactive guide
+make quick-start
+
+# 2. Or run the complete workflow
+make workflow
+
+# 3. Or test everything
+make test-integration
+```
+
+For manual control, use the universal runner:
+
+```bash
+./run.sh <tool-name> [args]
+```
+
 ## Features
 
 - **Pure Go Implementation**: No Python dependencies, fully implemented in Go
@@ -527,6 +548,103 @@ Then enable in config:
   }
 }
 ```
+
+## Additional Tools
+
+P.A.R.T.N.E.R includes several specialized tools for advanced workflows:
+
+### Live Chess Analysis
+
+Real-time vision-based chess analysis with CNN predictions:
+
+```bash
+# Build all tools
+make build-tools
+
+# Run live chess analyzer
+make run-live-chess
+
+# Or manually with custom settings
+ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/live-chess \
+  --model data/models/chess_cnn.bin \
+  --x 100 --y 100 --width 800 --height 800 \
+  --fps 2 --top 5
+```
+
+**Features:**
+
+- Captures chess board from screen region
+- Real-time board state detection
+- CNN-powered move predictions
+- Top-K move recommendations with confidence bars
+- Live monitoring with graceful shutdown
+
+**Parameters:**
+
+- `--model`: Path to trained CNN model
+- `--x, --y`: Screen capture position
+- `--width, --height`: Capture region size
+- `--fps`: Frames per second (1-60, default: 2)
+- `--top`: Number of top moves to show (default: 5)
+
+### Self-Improvement System
+
+Autonomous learning system that improves by observing its own mistakes:
+
+```bash
+# Run self-improvement
+make run-self-improve
+
+# Or manually
+ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/self-improvement \
+  --model data/models/chess_cnn.bin \
+  --dataset data/positions.db \
+  --observations 100
+```
+
+**How it works:**
+
+1. Loads trained CNN model and dataset
+2. Makes predictions on real positions
+3. Compares predictions to actual moves
+4. Stores observations in replay buffer
+5. Automatically triggers training after 60 seconds
+6. Improves model iteratively
+
+**Parameters:**
+
+- `--model`: CNN model path
+- `--dataset`: BoltDB database with positions
+- `--observations`: Number of observations to make (default: 50)
+
+### PGN Ingestion
+
+Import chess games from PGN files:
+
+```bash
+ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/ingest-pgn \
+  --input games.pgn \
+  --output data/positions.db
+```
+
+### CNN Training
+
+Direct CNN training on stored dataset:
+
+```bash
+ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/train-cnn \
+  --dataset data/positions.db \
+  --model data/models/chess_cnn.bin \
+  --epochs 50 \
+  --batch-size 32
+```
+
+**Features:**
+
+- Data augmentation (horizontal flip, color inversion)
+- Learning rate scheduling (cosine annealing with warmup)
+- Persistent model checkpoints
+- Real-time loss and accuracy tracking
 
 ## Extending P.A.R.T.N.E.R
 

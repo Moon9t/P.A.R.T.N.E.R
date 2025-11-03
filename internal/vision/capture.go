@@ -87,9 +87,9 @@ func (c *Capturer) DetectChange(frame *gocv.Mat) (bool, float64, error) {
 	defer c.mu.Unlock()
 
 	if c.lastFrame == nil {
-		// First frame, save it
-		c.lastFrame = &gocv.Mat{}
-		frame.CopyTo(c.lastFrame)
+		// First frame, save it (clone to create a properly initialized Mat)
+		cloned := frame.Clone()
+		c.lastFrame = &cloned
 		return true, 100.0, nil
 	}
 
@@ -114,8 +114,12 @@ func (c *Capturer) DetectChange(frame *gocv.Mat) (bool, float64, error) {
 	changed := meanVal > c.diffThreshold
 
 	if changed {
-		// Update last frame
-		frame.CopyTo(c.lastFrame)
+		// Update last frame (close old one and clone new frame)
+		if c.lastFrame != nil {
+			c.lastFrame.Close()
+		}
+		cloned := frame.Clone()
+		c.lastFrame = &cloned
 	}
 
 	return changed, meanVal, nil

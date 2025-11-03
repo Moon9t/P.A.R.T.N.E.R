@@ -34,15 +34,18 @@ go.work.sum
 .DS_Store
 Thumbs.db
 
-# Documentation (exclude all except README.md)
-CHANGELOG.md
-FINAL_TEST_REPORT.md
-INTEGRATION_TEST_RESULTS.md
-PHASE5_COMPLETE.md
-PHASE5_SUMMARY.md
-PRIORITY_2_DATA_COLLECTION.md
-SYSTEM_VALIDATION_COMPLETE.md
+# PGN and large data files
+*.pgn
+*.pgn.zst
+*.gob
 
-# Scripts
-collect-data.sh
-test-summary.sh
+# Model files (large binaries)
+*.bin
+
+# Test artifacts
+test_integration_*/
+demo_*/
+coverage.txt
+
+# Temporary files
+*.tmp

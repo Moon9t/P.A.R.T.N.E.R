@@ -7,12 +7,14 @@ import (
 	"math"
 	"time"
 
+	"github.com/thyrook/partner/internal/data"
 	"github.com/thyrook/partner/internal/model"
 )
 
 // SelfImprover manages the self-improving training loop
 type SelfImprover struct {
 	model   *model.ChessCNN
+	trainer *model.Trainer
 	buffer  *ReplayBuffer
 	storage *ReplayStorage
 
@@ -108,8 +110,26 @@ func NewSelfImprover(cnn *model.ChessCNN, config ImproverConfig) (*SelfImprover,
 		}
 	}
 
+	// Create trainer for incremental training
+	trainerConfig := &model.TrainingConfig{
+		Epochs:          1,
+		BatchSize:       config.BatchSize,
+		LearningRate:    config.LearningRate,
+		LRDecayRate:     1.0,
+		LRDecaySteps:    1,
+		GradientClipMax: 5.0,
+		Verbose:         false,
+	}
+
+	trainer, err := model.NewTrainer(trainerConfig)
+	if err != nil {
+		storage.Close()
+		return nil, fmt.Errorf("failed to create trainer: %w", err)
+	}
+
 	improver := &SelfImprover{
 		model:         cnn,
+		trainer:       trainer,
 		buffer:        buffer,
 		storage:       storage,
 		config:        config,
@@ -217,21 +237,29 @@ func (si *SelfImprover) Train() error {
 	log.Printf("Training on %d samples (reward-weighted: %v)",
 		len(sample), si.config.UseRewardWeighting)
 
-	// Prepare training data
-	inputTensors := make([][12][8][8]float32, len(sample))
-	targetMoves := make([]int, len(sample))
+	// Prepare training data - convert ReplayEntry to DataEntry format
+	log.Printf("Training model on %d samples (correct: %d, incorrect: %d)",
+		len(sample), countCorrect(sample), len(sample)-countCorrect(sample))
 
+	entries := make([]*data.DataEntry, len(sample))
 	for i, entry := range sample {
-		inputTensors[i] = entry.StateTensor
-		// Target is the actual move index
-		targetMoves[i] = entry.ActualMove.Index
+		flatTensor := data.TensorToFlatArray(entry.StateTensor)
+		entries[i] = &data.DataEntry{
+			StateTensor: flatTensor,
+			FromSquare:  entry.ActualMove.Index / 64,
+			ToSquare:    entry.ActualMove.Index % 64,
+		}
 	}
 
-	// Execute training step (would need to implement in model)
-	// For now, just log that we would train
-	log.Printf("Would train model on batch with %d samples", len(sample))
-	log.Printf("Sample stats: %d correct, %d incorrect",
-		countCorrect(sample), len(sample)-countCorrect(sample))
+	// Train on this batch using the persistent trainer
+	loss, correct, err := si.trainer.TrainOnBatch(entries)
+	if err != nil {
+		return fmt.Errorf("training failed: %w", err)
+	}
+	
+	batchAccuracy := float64(correct) / float64(len(entries)) * 100
+	log.Printf("Training complete: loss=%.4f, batch_accuracy=%.2f%% (%d/%d correct)",
+		loss, batchAccuracy, correct, len(entries))
 
 	// Evaluate accuracy after training
 	oldAccuracy := si.stats.CurrentAccuracy
@@ -340,6 +368,11 @@ func (si *SelfImprover) Close() error {
 	// Export final metrics
 	if err := si.ExportMetrics("final_metrics"); err != nil {
 		log.Printf("Warning: failed to export metrics: %v", err)
+	}
+
+	// Close trainer's model
+	if si.trainer != nil && si.trainer.GetModel() != nil {
+		si.trainer.GetModel().Close()
 	}
 
 	return si.storage.Close()

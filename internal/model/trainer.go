@@ -524,6 +524,12 @@ func (t *Trainer) GetModel() *ChessCNN {
 	return t.model
 }
 
+// TrainOnBatch trains the model on a single batch of entries
+// This is useful for incremental/online learning
+func (t *Trainer) TrainOnBatch(entries []*data.DataEntry) (loss float64, correct int, err error) {
+	return t.trainBatch(entries)
+}
+
 // TrainWithCallback trains with a callback function for progress monitoring
 func (t *Trainer) TrainWithCallback(dataset *data.Dataset, callback func(TrainingMetrics)) error {
 	// Store original verbose setting
