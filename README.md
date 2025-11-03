@@ -2,21 +2,21 @@
 
 **P**redictive **A**daptive **R**eal-**T**ime **N**eural **E**valuation & **R**esponse
 
-A production-grade AI system written entirely in Go that learns from watching gameplay (starting with chess) and becomes a visual partner that suggests moves based on what it observes.
+A production-grade AI system written entirely in Go that learns from chess gameplay through behavioral cloning and provides real-time move suggestions using convolutional neural networks.
 
-## 🚀 Quick Start
+## Quick Start
 
 Get started in 3 commands:
 
 ```bash
-# 1. Run the interactive guide
-make quick-start
+# 1. Build all tools
+make build
 
-# 2. Or run the complete workflow
-make workflow
+# 2. Ingest training data from PGN files
+./run.sh ingest-pgn --input data/sample_games.pgn --output data/positions.db
 
-# 3. Or test everything
-make test-integration
+# 3. Train the CNN model
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50
 ```
 
 For manual control, use the universal runner:
@@ -31,34 +31,41 @@ For manual control, use the universal runner:
 - **CPU-Optimized**: Runs efficiently on modest hardware (Intel i5 6th Gen, 8GB RAM)
 - **Computer Vision**: Real-time screen capture and board state detection using GoCV
 - **Deep Learning**: Convolutional neural network built with Gorgonia
-- **Behavioral Cloning**: Learns by observing human gameplay
-- **Persistent Learning**: Uses BoltDB for experience replay buffer
-- **Real-Time Advice**: Suggests moves with confidence scores
-- **Multiple Operation Modes**: Advise, Train, and Watch modes
+- **PGN Import**: Import chess games from standard PGN files
+- **Behavioral Cloning**: Learns from master-level gameplay
+- **Persistent Storage**: Uses BoltDB for efficient position storage
+- **Real-Time Analysis**: Live board detection and move prediction
+- **Multiple Tools**: CLI, training, ingestion, and analysis tools
 
 ## Architecture
 
 ```
 P.A.R.T.N.E.R/
-├── cmd/partner/          # Main application entry point
-│   └── main.go
+├── cmd/
+│   ├── partner-cli/     # Interactive CLI tool
+│   ├── train-cnn/       # CNN training tool
+│   ├── ingest-pgn/      # PGN import tool
+│   ├── live-chess/      # Live board analysis
+│   └── live-analysis/   # Real-time analysis engine
 ├── internal/
+│   ├── adapter/         # Game adapter system
 │   ├── config/          # Configuration management
-│   │   └── config.go
-│   ├── vision/          # Screen capture and image processing
-│   │   └── capture.go
-│   ├── model/           # Neural network architecture
-│   │   └── network.go
+│   ├── data/            # Dataset and PGN parsing
+│   ├── decision/        # Decision engine and move ranking
+│   ├── iface/           # CLI and logging
+│   ├── model/           # CNN architecture and training
+│   ├── storage/         # BoltDB observation storage
 │   ├── training/        # Training and replay buffer
-│   │   └── trainer.go
-│   ├── decision/        # Move prediction and advice engine
-│   │   └── engine.go
-│   └── iface/           # CLI, logging, and user interface
-│       └── interface.go
-├── data/                # Model weights and replay buffer
+│   └── vision/          # Computer vision and board detection
+├── bin/                 # Compiled binaries
+├── data/                # Training data and models
+│   ├── positions.db     # BoltDB position database
+│   └── models/          # Trained CNN models
 ├── logs/                # Application logs
-├── config.json          # Configuration file
+├── configs/             # Configuration files
 ├── go.mod              # Go module definition
+├── Makefile            # Build automation
+├── run.sh              # Universal runner script
 └── README.md           # This file
 ```
 
@@ -69,7 +76,7 @@ P.A.R.T.N.E.R/
 - **OS**: Linux (Ubuntu 18.04+), macOS 10.13+
 - **CPU**: Intel i5 6th Gen or better
 - **RAM**: 8GB minimum
-- **Go**: 1.21 or higher
+- **Go**: 1.21 or higher (tested with Go 1.25)
 
 ### Dependencies
 
@@ -129,7 +136,7 @@ go get -u go.uber.org/zap
 ### 1. Clone or Navigate to the Project
 
 ```bash
-cd /home/thyrook/Desktop/P.A.R.T.N.E.R
+cd /path/to/P.A.R.T.N.E.R
 ```
 
 ### 2. Install Go Dependencies
@@ -139,59 +146,59 @@ go mod download
 go mod tidy
 ```
 
-### 3. Build the Application
+### 3. Build All Tools
 
 ```bash
-go build -o partner cmd/partner/main.go
+make build
 ```
 
-Or use the more optimized build:
-
-```bash
-go build -ldflags="-s -w" -o partner cmd/partner/main.go
-```
+This will build all binaries to the `bin/` directory:
+- `partner` - Interactive CLI tool
+- `train-cnn` - CNN training utility
+- `ingest-pgn` - PGN import tool
+- `live-chess` - Live board analysis
+- `live-analysis` - Real-time analysis engine
 
 ### 4. Create Required Directories
 
 ```bash
-mkdir -p data logs
+mkdir -p data/models data/replays logs
 ```
 
 ## Configuration
 
-Edit `config.json` to customize the system:
+Edit `configs/partner.json` to customize the system:
 
 ```json
 {
   "vision": {
     "screen_region": {
-      "x": 100,          // Screen X coordinate
-      "y": 100,          // Screen Y coordinate
-      "width": 640,      // Capture width
-      "height": 640      // Capture height
+      "x": 100,
+      "y": 100,
+      "width": 640,
+      "height": 640
     },
-    "capture_fps": 2,    // Frames per second
-    "board_size": 8,     // Chess board size (8x8)
-    "diff_threshold": 15.0  // Change detection sensitivity
+    "capture_fps": 2,
+    "board_size": 8,
+    "diff_threshold": 15.0
   },
   "model": {
-    "input_size": 64,         // 8x8 board = 64 cells
-    "hidden_size": 256,       // Hidden layer size
-    "output_size": 4096,      // 64*64 possible moves
+    "input_size": 64,
+    "hidden_size": 256,
+    "output_size": 4096,
     "learning_rate": 0.001,
     "batch_size": 32,
-    "model_path": "data/model.bin"
+    "model_path": "data/models/chess_cnn.gob"
   },
   "training": {
     "replay_buffer_size": 10000,
-    "db_path": "data/replay.db",
+    "db_path": "data/positions.db",
     "save_interval": 100,
     "min_samples_before_training": 50
   },
   "interface": {
     "log_level": "info",
     "log_path": "logs/partner.log",
-    "enable_tts": false,
     "confidence_threshold": 0.3
   }
 }
@@ -202,9 +209,8 @@ Edit `config.json` to customize the system:
 To determine the correct screen region for the chessboard:
 
 1. Open your chess application
-2. Take a screenshot and note the board position
-3. Use a tool like `xwininfo` (Linux) or measure manually
-4. Update the `screen_region` in `config.json`
+2. Use a tool like `xwininfo` (Linux) to get window coordinates
+3. Update the `screen_region` in `configs/partner.json`
 
 ```bash
 # Linux: Click on the chess window after running this
@@ -213,456 +219,519 @@ xwininfo | grep -E "Absolute upper-left|Width|Height"
 
 ## Usage
 
-P.A.R.T.N.E.R has three operation modes:
+P.A.R.T.N.E.R provides multiple tools for different workflows:
 
-### 1. Watch Mode - Learning by Observation
+### Available Commands
 
-Watch mode observes gameplay and collects training data:
-
-```bash
-./partner -mode=watch
-```
-
-**How it works:**
-
-- Captures the screen region at regular intervals
-- Detects board changes (moves)
-- Stores observations in the replay buffer
-- Run this while playing chess or watching others play
-
-**Tips:**
-
-- Play at least 10-20 games to collect meaningful data
-- The system detects changes automatically
-- Press Ctrl+C to stop observation
-- Samples are saved to `data/replay.db`
-
-### 2. Train Mode - Learning from Experience
-
-Train the neural network on collected observations:
+All tools are accessed through the `run.sh` wrapper script:
 
 ```bash
-./partner -mode=train -epochs=100
+./run.sh <tool-name> [flags]
 ```
 
-**Parameters:**
+### 1. Interactive CLI - partner
 
-- `-epochs`: Number of training iterations (default: 10)
-- More epochs = better learning (but risk of overfitting)
-
-**What happens:**
-
-- Loads samples from replay buffer
-- Trains the CNN on observed (state, move) pairs
-- Saves model checkpoints every 100 epochs
-- Final model saved to `data/model.bin`
-
-**Training tips:**
-
-- Need at least 50 samples (configurable)
-- Start with 100 epochs, increase if loss is still decreasing
-- Monitor the loss value - it should decrease over time
-- Training on CPU may take several minutes
-
-### 3. Advise Mode - Real-Time Suggestions
-
-Get move suggestions in real-time:
+Interactive command-line interface for dataset management and training:
 
 ```bash
-./partner -mode=advise
+./run.sh partner
 ```
 
-**How it works:**
+**Features:**
+- Dataset management (view, export, clear)
+- Model training
+- Inference testing
+- Interactive menu system
 
-- Monitors the board continuously
-- When a change is detected, predicts the next move
-- Displays suggestions with confidence scores
-- Shows alternative moves
+### 2. PGN Ingestion - ingest-pgn
 
-**Output example:**
+Import chess games from PGN files into the training database:
 
+```bash
+./run.sh ingest-pgn --input <pgn-file> --output <database-file>
 ```
-➤ Predicted Move: e2e4 (Confidence: 87.3%)
 
-Alternative Moves:
-  1. d2d4 (72.1%)
-  2. g1f3 (68.5%)
+**Flags:**
+- `--input` - Path to PGN file (required)
+- `--output` - Path to output database (default: "data/positions.db")
+
+**Example:**
+```bash
+./run.sh ingest-pgn --input data/sample_games.pgn --output data/positions.db
 ```
+
+### 3. CNN Training - train-cnn
+
+Train the convolutional neural network on stored positions:
+
+```bash
+./run.sh train-cnn --dataset <database> --model <model-file> --epochs <num> --batch-size <size>
+```
+
+**Flags:**
+- `--dataset` - Path to training dataset (default: "data/chess_dataset.db")
+- `--model` - Path to save/load model (default: "models/chess_cnn.gob")
+- `--epochs` - Number of training epochs (default: 10)
+- `--batch-size` - Batch size for training (default: 64)
+- `--lr` - Learning rate (default: 0.001)
+- `--load` - Load existing model before training
+- `--test` - Test mode: just run inference on a sample
+
+**Example:**
+```bash
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50 --batch-size 64
+```
+
+### 4. Live Chess Analysis - live-chess
+
+Real-time board capture and move prediction:
+
+```bash
+./run.sh live-chess --model <model-file> --x <x> --y <y> --width <w> --height <h> --fps <fps> --top <k>
+```
+
+**Flags:**
+- `--model` - Path to trained model (required)
+- `--x` - Screen X coordinate (default: 100)
+- `--y` - Screen Y coordinate (default: 100)
+- `--width` - Capture width (default: 800)
+- `--height` - Capture height (default: 800)
+- `--fps` - Frames per second (default: 2)
+- `--top` - Number of top moves to show (default: 5)
+
+**Example:**
+```bash
+./run.sh live-chess --model data/models/chess_cnn.gob --x 100 --y 100 --width 800 --height 800
+```
+
+### 5. Live Analysis - live-analysis
+
+Advanced real-time analysis with decision engine:
+
+```bash
+./run.sh live-analysis
+```
+
+**Features:**
+- Real-time board detection
+- Move ranking with confidence scores
+- Pattern detection
+- Tactical analysis
 
 ## Workflow Example
 
-Here's a complete workflow from setup to getting advice:
+Here's a complete workflow from setup to getting predictions:
 
-### Step 1: Initial Setup
+### Step 1: Build All Tools
 
 ```bash
-# Build the application
-go build -o partner cmd/partner/main.go
-
-# Create directories
-mkdir -p data logs
+make build
 ```
 
-### Step 2: Configure Screen Region
+### Step 2: Prepare Training Data
+
+Download or prepare PGN files with chess games (master-level games recommended):
 
 ```bash
-# Edit config.json and set the screen_region to your chess board location
-nano config.json
+# Example: sample games are included
+ls data/sample_games.pgn
 ```
 
-### Step 3: Collect Training Data
+### Step 3: Ingest PGN Data
+
+Import chess games into the training database:
 
 ```bash
-# Start watch mode
-./partner -mode=watch
-
-# Now play chess (or watch a game)
-# The system will automatically detect and record moves
-# Let it collect data from 10-20 games
-# Press Ctrl+C when done
+./run.sh ingest-pgn --input data/sample_games.pgn --output data/positions.db
 ```
 
-### Step 4: Train the Model
+This parses all games and stores board positions with their corresponding moves.
+
+### Step 4: Train the CNN Model
+
+Train the neural network on the imported positions:
 
 ```bash
-# Train on collected data
-./partner -mode=train -epochs=200
-
-# Wait for training to complete
-# Model will be saved to data/model.bin
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50 --batch-size 64
 ```
 
-### Step 5: Get Real-Time Advice
+**Training Progress:**
+```
+Chess CNN Training Tool
+================
+Loading dataset from: data/positions.db
+Loaded 1234 positions
+
+Epoch 1/50: Loss=2.3456
+Epoch 2/50: Loss=2.1234
+...
+Epoch 50/50: Loss=0.8765
+
+Training complete! Model saved to: data/models/chess_model.gob
+```
+
+### Step 5: Run Live Analysis
+
+Use the trained model for real-time board analysis:
 
 ```bash
-# Start advise mode
-./partner -mode=advise
+./run.sh live-chess --model data/models/chess_model.gob --x 100 --y 100 --width 800 --height 800
+```
 
-# Play chess and watch for suggestions
-# The system will suggest moves as you play
+Or use the interactive CLI:
+
+```bash
+./run.sh partner
+# Choose option 3 for inference
 ```
 
 ## Understanding the Output
 
-### Watch Mode Output
+### PGN Ingestion Output
 
 ```
-[14:23:45] Starting WATCH mode - observing gameplay to learn...
-[14:23:47] Captured 10 board changes
-[14:24:02] Captured 20 board changes
-✓ Observation complete: 45 samples collected
-```
-
-### Train Mode Output
-
-```
-Training Epoch 10: Loss=2.1453, Buffer=45 samples
-Training Epoch 20: Loss=1.8932, Buffer=45 samples
+Parsing PGN file: data/sample_games.pgn
+Processed game 1: 45 positions
+Processed game 2: 52 positions
+Processed game 3: 38 positions
 ...
-[========================================] 100.0%
-✓ Training complete, model saved
-Final loss: 0.8234
+Total positions stored: 1234
+Database saved to: data/positions.db
 ```
 
-### Advise Mode Output
+### Training Output
 
 ```
-──────────────────────────────────────────────────
-🎯 MOVE SUGGESTION
-──────────────────────────────────────────────────
-Suggested Move: e2e4 (Confidence: 87.3%)
-Reasoning: High confidence move (87.3%). This is a strong choice.
+Chess CNN Training Tool
+================
+Loading dataset from: data/positions.db
+Loaded 1234 positions
 
-Alternative Moves:
-  1. d2d4 (72.1%)
-  2. g1f3 (68.5%)
-──────────────────────────────────────────────────
+Epoch 1/50: Loss=2.3456, Accuracy=0.234
+Epoch 2/50: Loss=2.1234, Accuracy=0.312
+Epoch 10/50: Loss=1.5432, Accuracy=0.456
+...
+Epoch 50/50: Loss=0.8765, Accuracy=0.723
+
+Training complete! Model saved to: data/models/chess_model.gob
+```
+
+### Live Chess Output
+
+```
+Live Chess Vision Analysis
+=========================
+Model loaded: data/models/chess_cnn.gob
+Capturing from: (100, 100) 800x800
+
+Board detected. Top 5 moves:
+1. e2e4 (87.3%) - Highly recommended. Controls center.
+2. d2d4 (72.1%) - Strong candidate. Solid positional play.
+3. g1f3 (68.5%) - Reasonable choice. Developing the position.
+4. c2c4 (54.2%) - Fair. English opening.
+5. e2e3 (45.7%) - Risky. Passive opening.
+```
+
+### Interactive CLI Output
+
+```
+P.A.R.T.N.E.R Interactive CLI
+============================
+1. View Dataset Stats
+2. Train Model
+3. Run Inference
+4. Export Data
+5. Clear Dataset
+6. Exit
+
+Select option:
 ```
 
 ## Advanced Usage
 
-### Custom Configuration File
+### Makefile Commands
+
+The project includes a comprehensive Makefile for common tasks:
 
 ```bash
-./partner -config=my_config.json -mode=advise
+# Build commands
+make build              # Build all tools
+make build-tools        # Build with environment variables set
+make clean              # Clean build artifacts
+
+# Run commands
+make run-live-chess     # Run live chess analysis
+make run-self-improve   # Run self-improvement system
+
+# Testing
+make test               # Run unit tests
+make test-integration   # Run integration tests
+make test-adapter       # Test game adapter interface
+
+# Development
+make fmt                # Format code
+make lint               # Lint code (requires golangci-lint)
+
+# Quick start guides
+make status             # Check system status
+make demo               # Run 60-second demo
+make quick-start        # Interactive setup guide
+make workflow           # Complete workflow demo
 ```
 
-### Verbose Logging
+### Custom Screen Regions
 
-Edit `config.json` and set `log_level` to `"debug"`:
+For live analysis, specify custom screen regions:
 
-```json
-{
-  "interface": {
-    "log_level": "debug"
-  }
-}
+```bash
+./run.sh live-chess --model data/models/chess_cnn.gob --x 200 --y 150 --width 1024 --height 1024 --fps 4
 ```
 
-### Enable Text-to-Speech
+### Batch Training
 
-```json
-{
-  "interface": {
-    "enable_tts": true
-  }
-}
+Train on multiple PGN files:
+
+```bash
+# Ingest multiple files
+./run.sh ingest-pgn --input data/training/Hikaru_games.pgn --output data/positions.db
+./run.sh ingest-pgn --input data/training/Carlsen_games.pgn --output data/positions.db
+
+# Train on combined dataset
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 100 --batch-size 128
 ```
 
-Note: TTS requires additional setup (see TTS Integration section below)
+### Model Loading
+
+Continue training from existing model:
+
+```bash
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50 --load
+```
 
 ## Performance Optimization
 
 ### For Low-End Systems
 
-1. **Reduce capture FPS**:
+Use smaller batch sizes and fewer epochs:
 
-```json
-{
-  "vision": {
-    "capture_fps": 1
-  }
-}
+```bash
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 20 --batch-size 16
 ```
 
-2. **Smaller batch size**:
+Reduce capture FPS for live analysis:
 
-```json
-{
-  "model": {
-    "batch_size": 16
-  }
-}
-```
-
-3. **Reduce hidden layer size**:
-
-```json
-{
-  "model": {
-    "hidden_size": 128
-  }
-}
+```bash
+./run.sh live-chess --model data/models/chess_cnn.gob --fps 1
 ```
 
 ### For Better Performance
 
-1. **Increase FPS for faster response**:
+Use larger batch sizes and more training epochs:
 
-```json
-{
-  "vision": {
-    "capture_fps": 4
-  }
-}
+```bash
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 100 --batch-size 128
 ```
 
-2. **Larger model for better accuracy**:
+Increase capture rate for faster response:
 
-```json
-{
-  "model": {
-    "hidden_size": 512
-  }
-}
+```bash
+./run.sh live-chess --model data/models/chess_cnn.gob --fps 4
 ```
+
+### GPU Acceleration
+
+Note: Current implementation is CPU-only. Gorgonia supports CUDA, but requires additional setup.
 
 ## Troubleshooting
+
+### Issue: "flag provided but not defined"
+
+**Solution:**
+Check the available flags for each tool. Common mistake is using `--output` instead of `--model` for train-cnn.
+
+Correct flags:
+- ingest-pgn: `--input`, `--output`
+- train-cnn: `--dataset`, `--model`, `--epochs`, `--batch-size`, `--lr`, `--load`, `--test`
+- live-chess: `--model`, `--x`, `--y`, `--width`, `--height`, `--fps`, `--top`
 
 ### Issue: "Failed to capture screen"
 
 **Solution:**
+- Check screen region coordinates with xwininfo (Linux)
+- Ensure the chess application is visible and not minimized
+- Verify X11 libraries are installed: `sudo apt-get install libx11-dev libxtst-dev`
+- On macOS, grant screen recording permissions in System Preferences
 
-- Check screen region coordinates in config.json
-- Ensure the chess application is visible
-- On Linux, verify X11 libraries are installed
-
-### Issue: "Not enough samples to train"
-
-**Solution:**
-
-- Collect more data in watch mode
-- Default minimum is 50 samples
-- Reduce `min_samples_before_training` in config.json (not recommended)
-
-### Issue: "Failed to load model"
+### Issue: "Failed to load model" or "no such file or directory"
 
 **Solution:**
+- Normal on first run - model doesn't exist yet
+- Train the model first: `./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50`
+- Check if model file exists: `ls -la data/models/`
+- Ensure correct path is specified
 
-- Normal on first run (no model exists yet)
-- Train the model first using train mode
-- Check if `data/model.bin` exists
-
-### Issue: Low confidence predictions
+### Issue: Low prediction accuracy
 
 **Solution:**
+- Import more high-quality games (master-level PGN files)
+- Train for more epochs: `--epochs 100` or higher
+- Increase batch size if RAM allows: `--batch-size 128`
+- Ensure PGN files are properly formatted
+- Use games from strong players (2500+ ELO rating)
 
-- Collect more training data
-- Train for more epochs
-- Ensure training data quality (watch complete games)
-- Lower `confidence_threshold` in config.json (use with caution)
+### Issue: "database is locked" or BoltDB errors
+
+**Solution:**
+- Ensure only one process is accessing the database at a time
+- Close any running partner CLI instances
+- Check for stale lock files in data/ directory
+- Restart if necessary
 
 ### Issue: High memory usage
 
 **Solution:**
-
-- Reduce `replay_buffer_size` in config.json
-- Reduce `hidden_size` in model configuration
+- Reduce batch size: `--batch-size 32` or lower
 - Close other applications
+- Monitor with: `top` or `htop`
+- Consider using a machine with more RAM
 
-## TTS Integration (Optional)
+### Issue: Compilation errors with Gorgonia
 
-To enable voice announcements:
+**Solution:**
+- Set the environment variable: `export ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25`
+- The `run.sh` script sets this automatically
+- For manual builds: `ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 go build ...`
 
-### Linux (espeak)
+## Command Reference
 
-```bash
-sudo apt-get install espeak
-```
+### run.sh
 
-Update interface.go to uncomment espeak integration:
-
-```go
-// In internal/iface/interface.go, Speak() function
-exec.Command("espeak", message).Run()
-```
-
-### macOS (say)
+Universal runner script that sets required environment variables:
 
 ```bash
-# Already installed on macOS
+./run.sh <tool> [flags]
 ```
 
-Update interface.go for macOS:
+Automatically sets: `ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25`
 
-```go
-exec.Command("say", message).Run()
-```
+### Available Tools
 
-Then enable in config:
-
-```json
-{
-  "interface": {
-    "enable_tts": true
-  }
-}
-```
-
-## Additional Tools
-
-P.A.R.T.N.E.R includes several specialized tools for advanced workflows:
-
-### Live Chess Analysis
-
-Real-time vision-based chess analysis with CNN predictions:
-
+#### partner
+Interactive CLI for dataset management, training, and inference.
 ```bash
-# Build all tools
-make build-tools
-
-# Run live chess analyzer
-make run-live-chess
-
-# Or manually with custom settings
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/live-chess \
-  --model data/models/chess_cnn.bin \
-  --x 100 --y 100 --width 800 --height 800 \
-  --fps 2 --top 5
+./run.sh partner
 ```
 
-**Features:**
-
-- Captures chess board from screen region
-- Real-time board state detection
-- CNN-powered move predictions
-- Top-K move recommendations with confidence bars
-- Live monitoring with graceful shutdown
-
-**Parameters:**
-
-- `--model`: Path to trained CNN model
-- `--x, --y`: Screen capture position
-- `--width, --height`: Capture region size
-- `--fps`: Frames per second (1-60, default: 2)
-- `--top`: Number of top moves to show (default: 5)
-
-### Self-Improvement System
-
-Autonomous learning system that improves by observing its own mistakes:
-
+#### ingest-pgn
+Import PGN files into training database.
 ```bash
-# Run self-improvement
-make run-self-improve
-
-# Or manually
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/self-improvement \
-  --model data/models/chess_cnn.bin \
-  --dataset data/positions.db \
-  --observations 100
+./run.sh ingest-pgn --input <file.pgn> --output <database.db>
 ```
 
-**How it works:**
-
-1. Loads trained CNN model and dataset
-2. Makes predictions on real positions
-3. Compares predictions to actual moves
-4. Stores observations in replay buffer
-5. Automatically triggers training after 60 seconds
-6. Improves model iteratively
-
-**Parameters:**
-
-- `--model`: CNN model path
-- `--dataset`: BoltDB database with positions
-- `--observations`: Number of observations to make (default: 50)
-
-### PGN Ingestion
-
-Import chess games from PGN files:
-
+#### train-cnn
+Train the CNN model on stored positions.
 ```bash
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/ingest-pgn \
-  --input games.pgn \
-  --output data/positions.db
+./run.sh train-cnn --dataset <db> --model <model.gob> --epochs <n> --batch-size <size>
 ```
 
-### CNN Training
-
-Direct CNN training on stored dataset:
-
+#### live-chess
+Real-time board capture and move prediction.
 ```bash
-ASSUME_NO_MOVING_GC_UNSAFE_RISK_IT_WITH=go1.25 ./bin/train-cnn \
-  --dataset data/positions.db \
-  --model data/models/chess_cnn.bin \
-  --epochs 50 \
-  --batch-size 32
+./run.sh live-chess --model <model.gob> --x <x> --y <y> --width <w> --height <h>
 ```
 
-**Features:**
+#### live-analysis
+Advanced analysis with decision engine and pattern detection.
+```bash
+./run.sh live-analysis
+```
 
-- Data augmentation (horizontal flip, color inversion)
-- Learning rate scheduling (cosine annealing with warmup)
-- Persistent model checkpoints
-- Real-time loss and accuracy tracking
+## Data Sources
 
-## Extending P.A.R.T.N.E.R
+### Where to Find PGN Files
 
-### Adding New Games
+High-quality PGN files for training:
 
-The system is designed to be game-agnostic. To adapt for other games:
+1. **lichess.org** - Download game databases by player
+   - [https://lichess.org/api](https://lichess.org/api)
+   - Filter by rating (2500+ recommended)
 
-1. Adjust `board_size` in config.json
-2. Update move encoding/decoding in `model/network.go`
-3. Modify vision processing in `vision/capture.go` if needed
+2. **pgnmentor.com** - Curated collections of master games
+   - Historical games
+   - World championship matches
 
-### Custom Neural Network Architectures
+3. **chessgames.com** - Large database of annotated games
+   - Download by player, opening, or event
 
-Edit `internal/model/network.go` to:
+4. **FICS Games Database** - Free Internet Chess Server archives
+   - Millions of games available
 
-- Add more convolutional layers
-- Change activation functions
-- Implement different architectures (ResNet, etc.)
+### Recommended Training Data
+
+For best results:
+- 10,000+ positions minimum
+- Games from players rated 2400+
+- Mix of openings and game types
+- Complete games (not fragments)
+
+Example workflow:
+```bash
+# Download from lichess (example)
+wget https://lichess.org/api/games/user/DrNykterstein?max=100 -O hikaru.pgn
+
+# Ingest into database
+./run.sh ingest-pgn --input hikaru.pgn --output data/positions.db
+
+# Train model
+./run.sh train-cnn --dataset data/positions.db --model data/models/chess_model.gob --epochs 50
+```
+
+## System Architecture
+
+### Game Adapter System
+
+P.A.R.T.N.E.R uses an adapter pattern for game-agnostic learning:
+
+- **GameAdapter Interface**: Abstract interface for any game
+- **ChessAdapter**: Reference implementation for chess
+- **Extensible**: Easy to add new games
+
+See `docs/ADAPTER_SYSTEM.md` for details.
+
+## Technical Implementation
+
+### CNN Architecture
+
+Current implementation uses a convolutional neural network with:
+- Input layer: 8x8 board representation (64 squares)
+- Convolutional layers with ReLU activation
+- Fully connected layers
+- Output layer: 4096 possible moves (64x64 from-to combinations)
+- Loss function: Cross-entropy
+- Optimizer: Adam with cosine annealing learning rate schedule
+
+### Data Pipeline
+
+1. **PGN Parsing** (`internal/data/pgn_parser.go`)
+   - Parses standard PGN format
+   - Extracts board positions and moves
+   - Handles variations and annotations
+
+2. **Tensorization** (`internal/data/tensorize.go`)
+   - Converts board states to tensors
+   - Encodes moves as integers (0-4095)
+   - Normalizes board representation
+
+3. **Storage** (`internal/storage/observation.go`)
+   - BoltDB for persistent storage
+   - Efficient key-value access
+   - JSON export capability
+
+4. **Training** (`internal/model/trainer.go`)
+   - Batch loading from database
+   - Data augmentation (horizontal flip, color inversion)
+   - Learning rate scheduling (warmup + cosine annealing)
+   - Model checkpointing
 
 ## Performance Benchmarks
 
@@ -673,23 +742,27 @@ On Intel i5 6th Gen, 8GB RAM:
 - **Training**: ~2-5 seconds per epoch (batch_size=32)
 - **Memory Usage**: ~200-500MB (depends on buffer size)
 
-## Contributing
+## Future Enhancements
 
-This is a complete, production-ready implementation. Potential enhancements:
+Potential improvements and extensions:
 
-- [ ] UCI protocol integration for direct chess engine communication
-- [ ] Multi-board game support
-- [ ] Distributed training
-- [ ] Web interface
-- [ ] Mobile app integration
-- [ ] Cloud model storage and sharing
+- UCI protocol integration for direct chess engine communication
+- Multi-board game support through adapter system
+- Distributed training across multiple machines
+- Web interface for remote access
+- Mobile app integration
+- Cloud model storage and sharing
+- GPU acceleration via CUDA support in Gorgonia
+- Reinforcement learning for self-play
+- Opening book integration
+- Endgame tablebase support
 
 ## Technical Details
 
-### Neural Network Architecture
+### CNN Architecture Details
 
 ```
-Input: 1x8x8 (grayscale board)
+Input: 1x8x8 (grayscale board representation)
   ↓
 Conv2D(16 filters, 3x3) + ReLU + MaxPool(2x2)
   ↓
@@ -731,14 +804,39 @@ This project is provided as-is for educational and personal use.
 - **GoCV**: Go bindings for OpenCV
 - **BoltDB**: Embedded database for Go
 
-## Support
+## Project Status
+
+Current version: Production-ready MVP
+
+Completed features:
+- PGN ingestion and parsing
+- CNN training with data augmentation
+- Real-time board capture and analysis
+- Interactive CLI tool
+- Decision engine with pattern detection
+- Persistent storage with BoltDB
+- Game adapter system
+
+See CHANGELOG.md for version history and ROADMAP.md for planned features.
+
+## Support and Documentation
 
 For issues, questions, or contributions:
 
-- Check the troubleshooting section
-- Review logs in `logs/partner.log`
-- Examine configuration in `config.json`
+- Check the troubleshooting section above
+- Review logs in `logs/` directory
+- Examine configuration in `configs/partner.json`
+- Read documentation in `docs/` directory
+- See QUICK_START.md for rapid setup guide
+
+## Related Files
+
+- `CHANGELOG.md` - Version history and changes
+- `ROADMAP.md` - Planned features and future development
+- `QUICK_START.md` - Fast setup guide
+- `LICENSE` - Project license
+- `docs/ADAPTER_SYSTEM.md` - Game adapter documentation
 
 ---
 
-Built with ❤️ in Go. No Python, no compromise, pure performance.
+Built with Go. No Python, no compromise, pure performance.

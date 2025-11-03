@@ -456,69 +456,6 @@ func squareToAlg(square int) string {
 	return string(rune('a'+file)) + string(rune('1'+rank))
 }
 
-// applyTemperature applies temperature scaling to logits
-func (ie *InferenceEngine) applyTemperature(output tensor.Tensor, temperature float64) tensor.Tensor {
-	if temperature == 1.0 {
-		return output
-	}
-
-	data := output.Data().([]float64)
-	scaled := make([]float64, len(data))
-
-	for i, val := range data {
-		scaled[i] = val / temperature
-	}
-
-	return tensor.New(
-		tensor.WithShape(output.Shape()...),
-		tensor.WithBacking(scaled),
-	)
-}
-
-// extractTopK extracts top K predictions from output
-func (ie *InferenceEngine) extractTopK(output tensor.Tensor, k int) (float64, []ActionConfidence) {
-	data := output.Data().([]float64)
-
-	// Find top K indices
-	type indexValue struct {
-		index int
-		value float64
-	}
-
-	values := make([]indexValue, len(data))
-	for i, v := range data {
-		values[i] = indexValue{i, v}
-	}
-
-	// Sort by value (descending)
-	for i := 0; i < len(values); i++ {
-		for j := i + 1; j < len(values); j++ {
-			if values[j].value > values[i].value {
-				values[i], values[j] = values[j], values[i]
-			}
-		}
-		if i >= k-1 {
-			break // Only need top K
-		}
-	}
-
-	// Extract top K
-	topK := make([]ActionConfidence, min(k, len(values)))
-	for i := 0; i < len(topK); i++ {
-		topK[i] = ActionConfidence{
-			Index:      values[i].index,
-			Confidence: values[i].value,
-		}
-	}
-
-	confidence := 0.0
-	if len(topK) > 0 {
-		confidence = topK[0].Confidence
-	}
-
-	return confidence, topK
-}
-
 // generateCacheKey generates a cache key from state
 func (ie *InferenceEngine) generateCacheKey(state interface{}) string {
 	// Simple string representation for now
@@ -684,12 +621,4 @@ func (ie *InferenceEngine) Close() error {
 
 	ie.ClearCache()
 	return nil
-}
-
-// Helper function
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

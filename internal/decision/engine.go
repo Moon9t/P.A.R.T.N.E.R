@@ -288,6 +288,12 @@ func (de *DecisionEngine) explainMove(confidence float64, rank int) string {
 	return de.generateRichExplanation(confidence, rank, "", patterns)
 }
 
+// ExplainMoveSimple provides a simple explanation based only on confidence and rank
+// Useful when detailed board analysis is not available
+func (de *DecisionEngine) ExplainMoveSimple(confidence float64, rank int) string {
+	return de.explainMove(confidence, rank)
+}
+
 // GetStatistics returns engine statistics
 func (de *DecisionEngine) GetStatistics() EngineStats {
 	de.mu.RLock()
@@ -540,6 +546,11 @@ func (mf *MoveFormatter) FormatMoveWithPiece(move string, pieceType string) stri
 
 // GenerateMoveExplanation creates a detailed explanation for a move
 func (de *DecisionEngine) GenerateMoveExplanation(move RankedMove, boardState []float64) string {
+	// If board state is not available, use simple explanation
+	if len(boardState) < 64 {
+		return de.explainMove(move.Confidence, move.Rank)
+	}
+
 	explanation := ""
 
 	// Confidence-based description
@@ -557,6 +568,13 @@ func (de *DecisionEngine) GenerateMoveExplanation(move RankedMove, boardState []
 	patterns := de.detectMovePatterns(move.Move, boardState)
 	if len(patterns) > 0 {
 		explanation += fmt.Sprintf("Pattern: %s. ", patterns[0])
+	} else {
+		// No patterns found, enhance with simple explanation
+		simpleExplanation := de.explainMove(move.Confidence, move.Rank)
+		// Extract just the descriptive part (after rank info)
+		if move.Rank > 1 && len(simpleExplanation) > 20 {
+			explanation += simpleExplanation[len(fmt.Sprintf("Alternative #%d: ", move.Rank)):]
+		}
 	}
 
 	// Tactical hints
@@ -589,6 +607,29 @@ func (de *DecisionEngine) detectMovePatterns(move string, boardState []float64) 
 	fileDiff := abs(toFile - fromFile)
 	rankDiff := abs(toRank - fromRank)
 
+	// Analyze board state if provided
+	var hasPieceDensity bool
+	var isDefendedSquare bool
+	if len(boardState) >= 64 {
+		// Check piece density around destination square
+		pieceCount := 0
+		for dr := -1; dr <= 1; dr++ {
+			for df := -1; df <= 1; df++ {
+				r, f := toRank+dr, toFile+df
+				if r >= 0 && r < 8 && f >= 0 && f < 8 {
+					idx := r*8 + f
+					if boardState[idx] != 0 {
+						pieceCount++
+					}
+				}
+			}
+		}
+		hasPieceDensity = pieceCount >= 4
+
+		// Check if destination square has nearby pieces (defended/attacked)
+		isDefendedSquare = pieceCount >= 2
+	}
+
 	// Detect move types
 	if fileDiff == 0 {
 		patterns = append(patterns, "Vertical advance")
@@ -604,12 +645,20 @@ func (de *DecisionEngine) detectMovePatterns(move string, boardState []float64) 
 	}
 	toSquare := move[2:4]
 	if centerSquares[toSquare] {
-		patterns = append(patterns, "Controls center")
+		if hasPieceDensity {
+			patterns = append(patterns, "Controls center (contested)")
+		} else {
+			patterns = append(patterns, "Controls center")
+		}
 	}
 
 	// Detect advancing moves
 	if (fromRank < 4 && toRank >= 4) || (fromRank >= 4 && toRank < 4) {
-		patterns = append(patterns, "Advances position")
+		if isDefendedSquare {
+			patterns = append(patterns, "Advances position (supported)")
+		} else {
+			patterns = append(patterns, "Advances position")
+		}
 	}
 
 	// Detect knight patterns
@@ -647,14 +696,48 @@ func (de *DecisionEngine) detectTactical(move string, boardState []float64) stri
 		return ""
 	}
 
+	fromFile := int(move[0] - 'a')
+	fromRank := int(move[1] - '1')
 	toFile := int(move[2] - 'a')
 	toRank := int(move[3] - '1')
 
-	// Simple tactical hints based on destination
-	// (In production, analyze actual board state for captures, pins, forks, etc.)
+	// Analyze board state for tactical patterns
+	var isCapture bool
+	var hasBackRank bool
+	if len(boardState) >= 64 {
+		// Check if destination square has opponent piece (capture)
+		toIdx := toRank*8 + toFile
+		fromIdx := fromRank*8 + fromFile
+
+		if toIdx < len(boardState) && fromIdx < len(boardState) {
+			movingPiece := boardState[fromIdx]
+			targetPiece := boardState[toIdx]
+
+			// If pieces have opposite signs, it's a capture
+			if movingPiece != 0 && targetPiece != 0 {
+				if (movingPiece > 0 && targetPiece < 0) || (movingPiece < 0 && targetPiece > 0) {
+					isCapture = true
+				}
+			}
+		}
+
+		// Check for back rank threats
+		hasBackRank = (toRank == 0 || toRank == 7)
+	}
+
+	// Build tactical description based on analysis
+	if isCapture {
+		if hasBackRank {
+			return "Capturing move with back rank pressure"
+		}
+		return "Tactical capture opportunity"
+	}
 
 	// Check if moving to enemy territory
 	if toRank >= 5 { // White advancing deep
+		if hasBackRank {
+			return "Aggressive penetration to back rank"
+		}
 		return "Aggressive advance into enemy territory"
 	} else if toRank <= 2 { // Black advancing deep
 		return "Defensive consolidation"
@@ -670,6 +753,11 @@ func (de *DecisionEngine) detectTactical(move string, boardState []float64) stri
 
 // CategorizeMove assigns a category based on confidence and patterns
 func (de *DecisionEngine) CategorizeMove(confidence float64, patterns []string) string {
+	// If no patterns detected, use legacy categorization
+	if len(patterns) == 0 {
+		return de.categorizeMove(confidence)
+	}
+
 	hasStrongPattern := false
 	for _, pattern := range patterns {
 		if pattern == "Controls center" || pattern == "Knight fork potential" || pattern == "Castling" {
@@ -678,6 +766,7 @@ func (de *DecisionEngine) CategorizeMove(confidence float64, patterns []string) 
 		}
 	}
 
+	// Pattern-enhanced categorization
 	if confidence >= 0.9 {
 		return "Excellent"
 	} else if confidence >= 0.7 {
@@ -721,10 +810,51 @@ func (mf *MoveFormatter) FormatDecision(decision *Decision) string {
 				mf.FormatMove(alt.Move),
 				alt.Confidence*100,
 				alt.Category)
+			// Add explanation for alternatives if available
+			if alt.Explanation != "" {
+				result += fmt.Sprintf("     %s\n", alt.Explanation)
+			}
 		}
 	}
 
 	result += fmt.Sprintf("\nInference Time: %.2f ms\n", decision.InferenceMs)
+
+	return result
+}
+
+// FormatDecisionWithDetails formats a decision with extended alternative explanations
+func (mf *MoveFormatter) FormatDecisionWithDetails(decision *Decision, engine *DecisionEngine) string {
+	result := fmt.Sprintf("Top Move: %s\n", mf.FormatMove(decision.TopMove.Move))
+	result += fmt.Sprintf("Confidence: %.1f%% (%s)\n",
+		decision.TopMove.Confidence*100,
+		decision.TopMove.Category)
+	result += fmt.Sprintf("Explanation: %s\n", decision.TopMove.Explanation)
+
+	if len(decision.Alternatives) > 0 {
+		result += "\nAlternatives:\n"
+		for i, alt := range decision.Alternatives {
+			if i >= 3 {
+				break
+			}
+			result += fmt.Sprintf("  %d. %s (%.1f%% - %s)\n",
+				alt.Rank,
+				mf.FormatMove(alt.Move),
+				alt.Confidence*100,
+				alt.Category)
+
+			// Generate explanation using explainMove if not already present
+			explanation := alt.Explanation
+			if explanation == "" && engine != nil {
+				explanation = engine.ExplainMoveSimple(alt.Confidence, alt.Rank)
+			}
+			if explanation != "" {
+				result += fmt.Sprintf("     %s\n", explanation)
+			}
+		}
+	}
+
+	result += fmt.Sprintf("\nInference Time: %.2f ms\n", decision.InferenceMs)
+	result += fmt.Sprintf("Total Alternatives: %d\n", len(decision.Alternatives))
 
 	return result
 }

@@ -30,7 +30,6 @@ const (
 )
 
 type CLI struct {
-	dataset          *data.Dataset
 	model            *model.ChessCNN
 	observationStore *storage.ObservationStore
 	modelPath        string
@@ -298,8 +297,7 @@ func (c *CLI) showHelp() {
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("HELP & DOCUMENTATION")
 	fmt.Println(strings.Repeat("=", 60))
-	fmt.Println(`
-P.A.R.T.N.E.R is a chess move prediction system using CNN.
+	fmt.Println(`P.A.R.T.N.E.R is a chess move prediction system using CNN.
 
 WORKFLOW:
 1. Ingest PGN files to build training dataset
@@ -328,8 +326,7 @@ TIPS:
 - Enable early stopping for efficient training
 - Save checkpoints every 5 epochs
 
-For more information, see README.md
-`)
+For more information, see README.md`)
 	fmt.Println(strings.Repeat("=", 60))
 }
 
