@@ -1,9 +1,7 @@
 .PHONY: all build clean install test run-advise run-train run-watch deps
 
-# Binary name
-BINARY=partner
+# Build directory
 BUILD_DIR=bin
-CMD_DIR=cmd/partner
 
 # Build flags
 LDFLAGS=-ldflags="-s -w"
@@ -11,12 +9,19 @@ GOFLAGS=-trimpath
 
 all: clean deps build
 
-# Build the application
+# Build all binaries
 build:
-	@echo "Building P.A.R.T.N.E.R..."
+	@echo "Building P.A.R.T.N.E.R tools..."
 	@mkdir -p $(BUILD_DIR)
-	@go build $(GOFLAGS) $(LDFLAGS) -o $(BINARY) $(CMD_DIR)/main.go
-	@echo "Build complete: ./$(BINARY)"
+	@echo "  train-cnn..."
+	@go build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/train-cnn cmd/train-cnn/main.go
+	@echo "  ingest-pgn..."
+	@go build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/ingest-pgn cmd/ingest-pgn/main.go
+	@echo "  live-chess..."
+	@go build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/live-chess cmd/live-chess/main.go
+	@echo "  live-analysis..."
+	@go build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/live-analysis cmd/live-analysis/main.go
+	@echo "✓ Build complete"
 
 # Install dependencies
 deps:

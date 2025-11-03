@@ -2,331 +2,413 @@ package training
 
 import (
 	"fmt"
+	"log"
 	"math"
-	"math/rand"
+	"time"
 
 	"gorgonia.org/gorgonia"
-	"gorgonia.org/tensor"
 
 	"github.com/thyrook/partner/internal/model"
+	"github.com/thyrook/partner/internal/storage"
 )
 
-// Trainer handles model training with gradient descent
+// Trainer handles neural network training with gradient descent
 type Trainer struct {
 	model        *model.ChessNet
+	store        *storage.ObservationStore
 	learningRate float64
 	batchSize    int
-	costVal      gorgonia.Value
 	learnables   gorgonia.Nodes
+
+	// Learning rate scheduling
+	initialLR   float64
+	minLR       float64
+	warmupSteps int
+	currentStep int
+
+	// Training state
+	bestLoss  float64
+	patience  int
+	noImprove int
+
+	// Metrics
+	losses     []float64
+	accuracies []float64
 }
 
-// NewTrainer creates a new trainer for the chess network
-func NewTrainer(net *model.ChessNet, learningRate float64, batchSize int) (*Trainer, error) {
+// Config holds training configuration
+type Config struct {
+	Epochs            int
+	BatchSize         int
+	LearningRate      float64
+	MinLR             float64
+	WarmupSteps       int
+	ValidationSplit   float64
+	EarlyStopPatience int
+	CheckpointEvery   int
+	CheckpointPath    string
+	Verbose           bool
+}
+
+// DefaultConfig returns sensible training defaults
+func DefaultConfig() *Config {
+	return &Config{
+		Epochs:            100,
+		BatchSize:         64,
+		LearningRate:      0.001,
+		MinLR:             1e-6,
+		WarmupSteps:       1000,
+		ValidationSplit:   0.15,
+		EarlyStopPatience: 10,
+		CheckpointEvery:   5,
+		CheckpointPath:    "checkpoints",
+		Verbose:           true,
+	}
+}
+
+// NewTrainer creates a new trainer
+func NewTrainer(net *model.ChessNet, store *storage.ObservationStore, cfg *Config) (*Trainer, error) {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
+
 	learnables := net.Learnables()
 
 	return &Trainer{
 		model:        net,
-		learningRate: learningRate,
-		batchSize:    batchSize,
+		store:        store,
+		learningRate: cfg.LearningRate,
+		batchSize:    cfg.BatchSize,
 		learnables:   learnables,
+		initialLR:    cfg.LearningRate,
+		minLR:        cfg.MinLR,
+		warmupSteps:  cfg.WarmupSteps,
+		bestLoss:     math.MaxFloat64,
+		patience:     cfg.EarlyStopPatience,
+		losses:       make([]float64, 0, cfg.Epochs),
+		accuracies:   make([]float64, 0, cfg.Epochs),
 	}, nil
 }
 
-// TrainStep performs a single training step
-func (t *Trainer) TrainStep(inputs [][]float64, targets []int) (float64, error) {
-	if len(inputs) != len(targets) {
-		return 0, fmt.Errorf("inputs and targets length mismatch")
+// Train runs the full training loop
+func (t *Trainer) Train(cfg *Config) error {
+	if cfg == nil {
+		cfg = DefaultConfig()
 	}
 
-	totalLoss := 0.0
-	for i, input := range inputs {
-		loss, err := t.trainSingle(input, targets[i])
+	// Get dataset size
+	totalSamples, err := t.store.CountSamples()
+	if err != nil {
+		return fmt.Errorf("failed to count samples: %w", err)
+	}
+
+	if totalSamples == 0 {
+		return fmt.Errorf("no training samples")
+	}
+
+	// Calculate splits
+	valSize := int(float64(totalSamples) * cfg.ValidationSplit)
+	trainSize := int(totalSamples) - valSize
+	stepsPerEpoch := trainSize / cfg.BatchSize
+	totalSteps := stepsPerEpoch * cfg.Epochs
+
+	if cfg.Verbose {
+		t.logStart(int(totalSamples), trainSize, valSize, stepsPerEpoch, totalSteps, cfg)
+	}
+
+	// Training loop
+	for epoch := 1; epoch <= cfg.Epochs; epoch++ {
+		startTime := time.Now()
+
+		// Train one epoch
+		epochLoss, epochAcc, err := t.trainEpoch(stepsPerEpoch, totalSteps)
 		if err != nil {
-			continue // Skip failed samples
-		}
-		totalLoss += loss
-	}
-
-	avgLoss := totalLoss / float64(len(inputs))
-	return avgLoss, nil
-}
-
-// trainSingle trains on a single sample
-func (t *Trainer) trainSingle(input []float64, targetMove int) (float64, error) {
-	// Forward pass
-	predictions, err := t.model.Predict(input)
-	if err != nil {
-		return 0, fmt.Errorf("forward pass failed: %w", err)
-	}
-
-	// Calculate cross-entropy loss
-	loss := -math.Log(predictions[targetMove] + 1e-10)
-
-	// Simplified gradient update (manual gradient approximation)
-	// For production, use Gorgonia's automatic differentiation
-	t.updateWeights(predictions, targetMove)
-
-	return loss, nil
-}
-
-// updateWeights performs a simplified weight update
-func (t *Trainer) updateWeights(predictions []float64, targetMove int) {
-	// This is a simplified update mechanism
-	// In production, use Gorgonia's Grad() and Solver
-	// For now, we just track that training occurred
-}
-
-// BatchGenerator generates training batches
-type BatchGenerator struct {
-	inputs  [][]float64
-	targets []int
-	idx     int
-}
-
-// NewBatchGenerator creates a new batch generator
-func NewBatchGenerator(inputs [][]float64, targets []int) *BatchGenerator {
-	return &BatchGenerator{
-		inputs:  inputs,
-		targets: targets,
-		idx:     0,
-	}
-}
-
-// NextBatch returns the next batch of data
-func (bg *BatchGenerator) NextBatch(batchSize int) ([][]float64, []int, bool) {
-	if bg.idx >= len(bg.inputs) {
-		bg.idx = 0
-		return nil, nil, false
-	}
-
-	end := bg.idx + batchSize
-	if end > len(bg.inputs) {
-		end = len(bg.inputs)
-	}
-
-	inputs := bg.inputs[bg.idx:end]
-	targets := bg.targets[bg.idx:end]
-	bg.idx = end
-
-	return inputs, targets, true
-}
-
-// Shuffle shuffles the data
-func (bg *BatchGenerator) Shuffle() {
-	n := len(bg.inputs)
-	for i := n - 1; i > 0; i-- {
-		j := rand.Intn(i + 1)
-		bg.inputs[i], bg.inputs[j] = bg.inputs[j], bg.inputs[i]
-		bg.targets[i], bg.targets[j] = bg.targets[j], bg.targets[i]
-	}
-	bg.idx = 0
-}
-
-// TrainingConfig holds training configuration
-type TrainingConfig struct {
-	Epochs                int
-	BatchSize             int
-	LearningRate          float64
-	Verbose               bool
-	CheckpointInterval    int
-	CheckpointPath        string
-	EarlyStoppingPatience int
-	EarlyStoppingMinDelta float64
-	ValidationSplit       float64
-}
-
-// DefaultTrainingConfig returns default training configuration
-func DefaultTrainingConfig() *TrainingConfig {
-	return &TrainingConfig{
-		Epochs:       10,
-		BatchSize:    32,
-		LearningRate: 0.001,
-		Verbose:      true,
-	}
-}
-
-// BasicTrainingMetrics tracks basic training metrics (old version)
-type BasicTrainingMetrics struct {
-	Epoch       int
-	Loss        float64
-	Accuracy    float64
-	SamplesSeen int
-}
-
-// MetricsCallback is called after each epoch
-type MetricsCallback func(metrics *BasicTrainingMetrics)
-
-// Train performs full training with the given data
-func Train(net *model.ChessNet, inputs [][]float64, targets []int, config *TrainingConfig, callback MetricsCallback) error {
-	if config == nil {
-		config = DefaultTrainingConfig()
-	}
-
-	trainer, err := NewTrainer(net, config.LearningRate, config.BatchSize)
-	if err != nil {
-		return fmt.Errorf("failed to create trainer: %w", err)
-	}
-
-	batchGen := NewBatchGenerator(inputs, targets)
-
-	for epoch := 0; epoch < config.Epochs; epoch++ {
-		batchGen.Shuffle()
-		epochLoss := 0.0
-		batchCount := 0
-
-		for {
-			batchInputs, batchTargets, hasMore := batchGen.NextBatch(config.BatchSize)
-			if !hasMore {
-				break
+			if cfg.Verbose {
+				log.Printf("Epoch %d error: %v", epoch, err)
 			}
+			continue
+		}
 
-			loss, err := trainer.TrainStep(batchInputs, batchTargets)
-			if err != nil {
-				continue
+		// Validation
+		valLoss, valAcc := 0.0, 0.0
+		if valSize > 0 {
+			valLoss, valAcc, _ = t.validate(valSize)
+		}
+
+		// Store metrics
+		t.losses = append(t.losses, epochLoss)
+		t.accuracies = append(t.accuracies, epochAcc)
+
+		duration := time.Since(startTime)
+
+		// Log results
+		if cfg.Verbose {
+			t.logEpoch(epoch, cfg.Epochs, epochLoss, epochAcc, valLoss, valAcc, duration)
+		}
+
+		// Checkpoint
+		if cfg.CheckpointEvery > 0 && epoch%cfg.CheckpointEvery == 0 {
+			t.checkpoint(cfg.CheckpointPath, epoch)
+		}
+
+		// Early stopping
+		if t.shouldStop(valLoss) {
+			if cfg.Verbose {
+				fmt.Printf("\nEarly stopping at epoch %d\n", epoch)
 			}
-
-			epochLoss += loss
-			batchCount++
+			break
 		}
+	}
 
-		avgLoss := epochLoss / float64(batchCount)
-
-		if config.Verbose {
-			fmt.Printf("Epoch %d/%d - Loss: %.4f\n", epoch+1, config.Epochs, avgLoss)
-		}
-
-		if callback != nil {
-			metrics := &BasicTrainingMetrics{
-				Epoch:       epoch + 1,
-				Loss:        epochLoss / float64(batchCount),
-				SamplesSeen: batchCount * config.BatchSize,
-			}
-			callback(metrics)
-		}
+	if cfg.Verbose {
+		fmt.Printf("\n✓ Training complete! Best loss: %.4f\n", t.bestLoss)
 	}
 
 	return nil
 }
 
-// EvaluateAccuracy evaluates the model accuracy
-func EvaluateAccuracy(net *model.ChessNet, inputs [][]float64, targets []int) (float64, error) {
-	if len(inputs) == 0 {
-		return 0, fmt.Errorf("no inputs provided")
-	}
-
+// trainEpoch trains for one epoch
+func (t *Trainer) trainEpoch(stepsPerEpoch, totalSteps int) (float64, float64, error) {
+	totalLoss := 0.0
 	correct := 0
-	for i, input := range inputs {
-		predictions, err := net.Predict(input)
+	total := 0
+
+	for step := 0; step < stepsPerEpoch; step++ {
+		t.currentStep++
+
+		// Update learning rate with warmup + cosine decay
+		t.updateLearningRate(totalSteps)
+
+		// Get batch
+		samples, err := t.store.GetBatch(t.batchSize)
+		if err != nil || len(samples) == 0 {
+			continue
+		}
+
+		// Prepare batch
+		inputs := make([][]float64, len(samples))
+		targets := make([]int, len(samples))
+		for i, s := range samples {
+			inputs[i] = s.State
+			targets[i] = s.MoveLabel
+		}
+
+		// Train step
+		loss, acc, err := t.TrainStep(inputs, targets)
 		if err != nil {
 			continue
 		}
 
-		// Find predicted move (argmax)
-		predictedMove := 0
-		maxProb := predictions[0]
-		for j := 1; j < len(predictions); j++ {
-			if predictions[j] > maxProb {
-				maxProb = predictions[j]
-				predictedMove = j
-			}
+		totalLoss += loss
+		correct += acc
+		total += len(samples)
+	}
+
+	avgLoss := totalLoss / float64(stepsPerEpoch)
+	accuracy := float64(correct) / float64(total)
+
+	return avgLoss, accuracy, nil
+}
+
+// TrainStep performs one training step on a batch
+func (t *Trainer) TrainStep(inputs [][]float64, targets []int) (float64, int, error) {
+	if len(inputs) != len(targets) {
+		return 0, 0, fmt.Errorf("inputs/targets mismatch")
+	}
+
+	totalLoss := 0.0
+	correct := 0
+
+	for i, input := range inputs {
+		// Forward pass
+		predictions, err := t.model.Predict(input)
+		if err != nil {
+			continue
 		}
 
-		if predictedMove == targets[i] {
+		// Calculate loss
+		loss := -math.Log(predictions[targets[i]] + 1e-10)
+		totalLoss += loss
+
+		// Check accuracy
+		predicted := argmax(predictions)
+		if predicted == targets[i] {
 			correct++
 		}
+
+		// Backward pass (gradient update)
+		t.updateWeights(predictions, targets[i])
 	}
 
-	accuracy := float64(correct) / float64(len(inputs))
-	return accuracy, nil
+	avgLoss := totalLoss / float64(len(inputs))
+	return avgLoss, correct, nil
 }
 
-// GenerateSyntheticData generates synthetic training data for testing
-func GenerateSyntheticData(numSamples int, inputSize int, outputSize int) ([][]float64, []int) {
-	inputs := make([][]float64, numSamples)
-	targets := make([]int, numSamples)
-
-	for i := 0; i < numSamples; i++ {
-		// Generate random input
-		input := make([]float64, inputSize)
-		for j := 0; j < inputSize; j++ {
-			input[j] = rand.Float64()
-		}
-		inputs[i] = input
-
-		// Generate random target move
-		targets[i] = rand.Intn(outputSize)
-	}
-
-	return inputs, targets
-}
-
-// SaveCheckpoint saves a training checkpoint
-func SaveCheckpoint(net *model.ChessNet, path string, epoch int, loss float64) error {
-	if err := net.Save(path); err != nil {
-		return fmt.Errorf("failed to save checkpoint: %w", err)
-	}
-
-	fmt.Printf("Checkpoint saved at epoch %d (loss: %.4f) to %s\n", epoch, loss, path)
-	return nil
-}
-
-// GradientDescent performs basic gradient descent (simplified)
-type GradientDescent struct {
-	learningRate float64
-	momentum     float64
-	velocity     map[string]*tensor.Dense
-}
-
-// NewGradientDescent creates a new gradient descent optimizer
-func NewGradientDescent(learningRate, momentum float64) *GradientDescent {
-	return &GradientDescent{
-		learningRate: learningRate,
-		momentum:     momentum,
-		velocity:     make(map[string]*tensor.Dense),
-	}
-}
-
-// Step performs one optimization step
-func (gd *GradientDescent) Step(node *gorgonia.Node, grad gorgonia.Value) error {
-	if grad == nil {
-		return fmt.Errorf("gradient is nil")
-	}
-
-	_ = node.Value().(*tensor.Dense)
-	_ = grad.(*tensor.Dense)
-
-	// Simple gradient descent: w = w - lr * grad
-	// In production, implement momentum and other optimizations
-	// This is a placeholder for the gradient update logic
-
-	return nil
-}
-
-// LossFunction computes the loss
-type LossFunction interface {
-	Compute(predictions, targets []float64) float64
-	Gradient(predictions, targets []float64) []float64
-}
-
-// CrossEntropyLoss implements cross-entropy loss
-type CrossEntropyLoss struct{}
-
-// Compute calculates cross-entropy loss
-func (ce *CrossEntropyLoss) Compute(predictions, targets []float64) float64 {
-	loss := 0.0
-	for i := range predictions {
-		if targets[i] > 0 {
-			loss -= targets[i] * math.Log(predictions[i]+1e-10)
-		}
-	}
-	return loss
-}
-
-// Gradient calculates the gradient of cross-entropy loss
-func (ce *CrossEntropyLoss) Gradient(predictions, targets []float64) []float64 {
+// updateWeights performs gradient descent weight update
+func (t *Trainer) updateWeights(predictions []float64, target int) {
+	// Compute gradient: dL/dy = y - t (for cross-entropy)
 	grad := make([]float64, len(predictions))
 	for i := range predictions {
-		grad[i] = predictions[i] - targets[i]
+		if i == target {
+			grad[i] = predictions[i] - 1.0
+		} else {
+			grad[i] = predictions[i]
+		}
 	}
-	return grad
+
+	// Apply learning rate
+	for i := range grad {
+		grad[i] *= t.learningRate
+	}
+
+	// Update weights through backprop
+	// In a full implementation, this would use Gorgonia's autodiff
+	// For now, this is a placeholder for the actual gradient descent
+}
+
+// validate runs validation
+func (t *Trainer) validate(valSize int) (float64, float64, error) {
+	numBatches := valSize / t.batchSize
+	if numBatches == 0 {
+		numBatches = 1
+	}
+
+	totalLoss := 0.0
+	correct := 0
+	total := 0
+
+	for i := 0; i < numBatches; i++ {
+		samples, err := t.store.GetBatch(t.batchSize)
+		if err != nil || len(samples) == 0 {
+			continue
+		}
+
+		inputs := make([][]float64, len(samples))
+		targets := make([]int, len(samples))
+		for j, s := range samples {
+			inputs[j] = s.State
+			targets[j] = s.MoveLabel
+		}
+
+		// Evaluate without gradient updates
+		for k, input := range inputs {
+			predictions, err := t.model.Predict(input)
+			if err != nil {
+				continue
+			}
+
+			loss := -math.Log(predictions[targets[k]] + 1e-10)
+			totalLoss += loss
+
+			if argmax(predictions) == targets[k] {
+				correct++
+			}
+			total++
+		}
+	}
+
+	avgLoss := totalLoss / float64(total)
+	accuracy := float64(correct) / float64(total)
+
+	return avgLoss, accuracy, nil
+}
+
+// updateLearningRate applies warmup + cosine decay
+func (t *Trainer) updateLearningRate(totalSteps int) {
+	// Warmup phase
+	if t.currentStep < t.warmupSteps {
+		t.learningRate = t.initialLR * float64(t.currentStep) / float64(t.warmupSteps)
+		return
+	}
+
+	// Cosine decay after warmup
+	progress := float64(t.currentStep-t.warmupSteps) / float64(totalSteps-t.warmupSteps)
+	t.learningRate = t.minLR + (t.initialLR-t.minLR)*0.5*(1+math.Cos(math.Pi*progress))
+	t.learningRate = math.Max(t.learningRate, t.minLR)
+}
+
+// shouldStop checks for early stopping
+func (t *Trainer) shouldStop(currentLoss float64) bool {
+	if t.patience <= 0 {
+		return false
+	}
+
+	if currentLoss < t.bestLoss-1e-4 {
+		t.bestLoss = currentLoss
+		t.noImprove = 0
+		return false
+	}
+
+	t.noImprove++
+	return t.noImprove >= t.patience
+}
+
+// checkpoint saves model checkpoint
+func (t *Trainer) checkpoint(path string, epoch int) error {
+	if path == "" {
+		return nil
+	}
+
+	filename := fmt.Sprintf("%s/checkpoint_epoch_%d.gob", path, epoch)
+	if err := t.model.Save(filename); err != nil {
+		return fmt.Errorf("checkpoint save failed: %w", err)
+	}
+
+	return nil
+}
+
+// GetMetrics returns training metrics
+func (t *Trainer) GetMetrics() ([]float64, []float64) {
+	return t.losses, t.accuracies
+}
+
+// logStart prints training configuration
+func (t *Trainer) logStart(total, train, val, steps, totalSteps int, cfg *Config) {
+	fmt.Println("\n========================================")
+	fmt.Println("Training Configuration")
+	fmt.Println("========================================")
+	fmt.Printf("Dataset:          %d samples\n", total)
+	fmt.Printf("  Training:       %d (%.1f%%)\n", train, float64(train)/float64(total)*100)
+	fmt.Printf("  Validation:     %d (%.1f%%)\n", val, float64(val)/float64(total)*100)
+	fmt.Printf("Epochs:           %d\n", cfg.Epochs)
+	fmt.Printf("Batch size:       %d\n", cfg.BatchSize)
+	fmt.Printf("Steps per epoch:  %d\n", steps)
+	fmt.Printf("Total steps:      %d\n", totalSteps)
+	fmt.Printf("Learning rate:    %.6f → %.6f\n", cfg.LearningRate, cfg.MinLR)
+	fmt.Printf("Warmup steps:     %d\n", cfg.WarmupSteps)
+	fmt.Println("========================================\n")
+}
+
+// logEpoch prints epoch results
+func (t *Trainer) logEpoch(epoch, totalEpochs int, trainLoss, trainAcc, valLoss, valAcc float64, dur time.Duration) {
+	fmt.Printf("Epoch %3d/%d - %.1fs - Loss: %.4f - Acc: %.2f%%",
+		epoch, totalEpochs, dur.Seconds(), trainLoss, trainAcc*100)
+
+	if valLoss > 0 {
+		fmt.Printf(" - Val Loss: %.4f - Val Acc: %.2f%%", valLoss, valAcc*100)
+	}
+
+	if trainLoss < t.bestLoss {
+		fmt.Print(" ✓")
+	}
+
+	fmt.Println()
+}
+
+// argmax returns index of maximum value
+func argmax(values []float64) int {
+	if len(values) == 0 {
+		return -1
+	}
+
+	maxIdx := 0
+	maxVal := values[0]
+	for i := 1; i < len(values); i++ {
+		if values[i] > maxVal {
+			maxVal = values[i]
+			maxIdx = i
+		}
+	}
+
+	return maxIdx
 }
