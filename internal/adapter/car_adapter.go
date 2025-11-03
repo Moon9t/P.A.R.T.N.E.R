@@ -52,7 +52,6 @@ type RacingAdapter struct {
 
 	// Statistics
 	totalDistance float64
-	totalTime     float64
 	crashCount    int
 	bestLapTime   float64
 }

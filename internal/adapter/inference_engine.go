@@ -64,7 +64,7 @@ type CachedPrediction struct {
 	HitCount  int
 }
 
-type PredictionResult struct{
+type PredictionResult struct {
 	Action     interface{}            `json:"action"`
 	Confidence float64                `json:"confidence"`
 	TopK       []ActionConfidence     `json:"top_k"`
