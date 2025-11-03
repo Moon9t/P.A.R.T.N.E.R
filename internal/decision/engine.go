@@ -11,7 +11,6 @@ import (
 	"github.com/thyrook/partner/internal/vision"
 )
 
-// RankedMove represents a move with ranking information
 type RankedMove struct {
 	Move        string
 	Confidence  float64
@@ -21,7 +20,6 @@ type RankedMove struct {
 	Category    string // "Excellent", "Good", "Fair", "Risky"
 }
 
-// DecisionEngine handles advanced move ranking and selection
 type DecisionEngine struct {
 	model               *model.ChessNet
 	capturer            *vision.Capturer
@@ -37,7 +35,6 @@ type DecisionEngine struct {
 	totalInferenceTime time.Duration
 }
 
-// NewDecisionEngine creates an enhanced decision engine
 func NewDecisionEngine(
 	net *model.ChessNet,
 	capturer *vision.Capturer,
@@ -54,7 +51,6 @@ func NewDecisionEngine(
 	}
 }
 
-// Decision represents a complete decision with ranked alternatives
 type Decision struct {
 	TopMove      *RankedMove
 	Alternatives []RankedMove
@@ -64,7 +60,6 @@ type Decision struct {
 	TotalMoves   int
 }
 
-// MakeDecision performs complete decision-making process
 func (de *DecisionEngine) MakeDecision() (*Decision, error) {
 	startTime := time.Now()
 
@@ -174,7 +169,6 @@ func (de *DecisionEngine) captureBoardWithFallback() (*vision.BoardState, error)
 	return nil, fmt.Errorf("all capture attempts failed: %w", lastErr)
 }
 
-// rankMoves ranks predictions and returns top K moves with rich metadata and explanations
 func (de *DecisionEngine) rankMoves(predictions []float64) []RankedMove {
 	// Get top K moves from model
 	topMoves := model.GetTopKMoves(predictions, de.topK)
@@ -206,7 +200,6 @@ func (de *DecisionEngine) rankMoves(predictions []float64) []RankedMove {
 	return rankedMoves
 }
 
-// generateRichExplanation creates detailed, human-friendly move explanation with tactical context
 func (de *DecisionEngine) generateRichExplanation(confidence float64, rank int, move string, patterns []string) string {
 	explanation := ""
 
@@ -266,7 +259,7 @@ func (de *DecisionEngine) generateRichExplanation(confidence float64, rank int, 
 	return explanation
 }
 
-// categorizeMove categorizes a move based on confidence (legacy method kept for compatibility)
+// categorizeMove - legacy compatibility
 func (de *DecisionEngine) categorizeMove(confidence float64) string {
 	switch {
 	case confidence >= 0.80:
@@ -282,19 +275,16 @@ func (de *DecisionEngine) categorizeMove(confidence float64) string {
 	}
 }
 
-// explainMove generates explanation for a move (legacy method kept for compatibility)
+// explainMove - legacy compatibility
 func (de *DecisionEngine) explainMove(confidence float64, rank int) string {
 	patterns := []string{}
 	return de.generateRichExplanation(confidence, rank, "", patterns)
 }
 
-// ExplainMoveSimple provides a simple explanation based only on confidence and rank
-// Useful when detailed board analysis is not available
 func (de *DecisionEngine) ExplainMoveSimple(confidence float64, rank int) string {
 	return de.explainMove(confidence, rank)
 }
 
-// GetStatistics returns engine statistics
 func (de *DecisionEngine) GetStatistics() EngineStats {
 	de.mu.RLock()
 	defer de.mu.RUnlock()
@@ -319,7 +309,6 @@ func (de *DecisionEngine) GetStatistics() EngineStats {
 	}
 }
 
-// EngineStats represents engine performance statistics
 type EngineStats struct {
 	TotalDecisions     int
 	SuccessfulCaptures int
@@ -329,7 +318,6 @@ type EngineStats struct {
 	TotalInferenceTime time.Duration
 }
 
-// DecisionWithContext makes a decision from a provided board state
 func (de *DecisionEngine) DecisionWithContext(boardState []float64) (*Decision, error) {
 	startTime := time.Now()
 
@@ -379,7 +367,6 @@ func (de *DecisionEngine) DecisionWithContext(boardState []float64) (*Decision, 
 	return decision, nil
 }
 
-// BatchDecisions makes decisions on multiple board states
 func (de *DecisionEngine) BatchDecisions(boardStates [][]float64) ([]*Decision, error) {
 	decisions := make([]*Decision, 0, len(boardStates))
 
@@ -402,7 +389,6 @@ func (de *DecisionEngine) BatchDecisions(boardStates [][]float64) ([]*Decision, 
 	return decisions, nil
 }
 
-// CompareDecisions compares two decisions for analysis
 func CompareDecisions(d1, d2 *Decision) *DecisionComparison {
 	return &DecisionComparison{
 		Decision1:       d1,
@@ -414,7 +400,6 @@ func CompareDecisions(d1, d2 *Decision) *DecisionComparison {
 	}
 }
 
-// DecisionComparison represents comparison between two decisions
 type DecisionComparison struct {
 	Decision1       *Decision
 	Decision2       *Decision
@@ -424,14 +409,12 @@ type DecisionComparison struct {
 	TimeDelta       time.Duration
 }
 
-// DecisionHistory tracks decision history with analysis
 type DecisionHistory struct {
 	decisions []Decision
 	maxSize   int
 	mu        sync.RWMutex
 }
 
-// NewDecisionHistory creates a new decision history tracker
 func NewDecisionHistory(maxSize int) *DecisionHistory {
 	return &DecisionHistory{
 		decisions: make([]Decision, 0, maxSize),
@@ -439,7 +422,6 @@ func NewDecisionHistory(maxSize int) *DecisionHistory {
 	}
 }
 
-// Add adds a decision to history
 func (dh *DecisionHistory) Add(decision *Decision) {
 	dh.mu.Lock()
 	defer dh.mu.Unlock()
@@ -450,7 +432,6 @@ func (dh *DecisionHistory) Add(decision *Decision) {
 	}
 }
 
-// GetRecent returns N most recent decisions
 func (dh *DecisionHistory) GetRecent(n int) []Decision {
 	dh.mu.RLock()
 	defer dh.mu.RUnlock()
@@ -465,7 +446,6 @@ func (dh *DecisionHistory) GetRecent(n int) []Decision {
 	return recent
 }
 
-// GetStats returns statistics about decision history
 func (dh *DecisionHistory) GetStats() HistoryStats {
 	dh.mu.RLock()
 	defer dh.mu.RUnlock()
@@ -492,7 +472,6 @@ func (dh *DecisionHistory) GetStats() HistoryStats {
 	}
 }
 
-// HistoryStats represents statistics about decision history
 type HistoryStats struct {
 	TotalDecisions int
 	AvgConfidence  float64
@@ -500,10 +479,8 @@ type HistoryStats struct {
 	CategoryCounts map[string]int
 }
 
-// MoveFormatter formats moves for display
 type MoveFormatter struct{}
 
-// FormatMove formats a move in human-readable format
 func (mf *MoveFormatter) FormatMove(move string) string {
 	if len(move) != 4 {
 		return move
@@ -515,7 +492,6 @@ func (mf *MoveFormatter) FormatMove(move string) string {
 	return fmt.Sprintf("Move from %s to %s", from, to)
 }
 
-// FormatMoveWithPiece formats move with piece information with rich context
 func (mf *MoveFormatter) FormatMoveWithPiece(move string, pieceType string) string {
 	if pieceType == "" {
 		return mf.FormatMove(move)
@@ -544,7 +520,6 @@ func (mf *MoveFormatter) FormatMoveWithPiece(move string, pieceType string) stri
 	return fmt.Sprintf("%s: %s → %s", pieceName, from, to)
 }
 
-// GenerateMoveExplanation creates a detailed explanation for a move
 func (de *DecisionEngine) GenerateMoveExplanation(move RankedMove, boardState []float64) string {
 	// If board state is not available, use simple explanation
 	if len(boardState) < 64 {
@@ -591,7 +566,6 @@ func (de *DecisionEngine) GenerateMoveExplanation(move RankedMove, boardState []
 	return explanation
 }
 
-// detectMovePatterns identifies common chess patterns in a move
 func (de *DecisionEngine) detectMovePatterns(move string, boardState []float64) []string {
 	if len(move) != 4 {
 		return nil
@@ -690,7 +664,6 @@ func (de *DecisionEngine) detectMovePatterns(move string, boardState []float64) 
 	return patterns
 }
 
-// detectTactical identifies tactical motifs
 func (de *DecisionEngine) detectTactical(move string, boardState []float64) string {
 	if len(move) != 4 {
 		return ""
@@ -751,7 +724,6 @@ func (de *DecisionEngine) detectTactical(move string, boardState []float64) stri
 	return ""
 }
 
-// CategorizeMove assigns a category based on confidence and patterns
 func (de *DecisionEngine) CategorizeMove(confidence float64, patterns []string) string {
 	// If no patterns detected, use legacy categorization
 	if len(patterns) == 0 {
@@ -783,7 +755,6 @@ func (de *DecisionEngine) CategorizeMove(confidence float64, patterns []string) 
 	}
 }
 
-// Helper function
 func abs(x int) int {
 	if x < 0 {
 		return -x
@@ -791,7 +762,6 @@ func abs(x int) int {
 	return x
 }
 
-// FormatDecision formats a complete decision for display
 func (mf *MoveFormatter) FormatDecision(decision *Decision) string {
 	result := fmt.Sprintf("Top Move: %s\n", mf.FormatMove(decision.TopMove.Move))
 	result += fmt.Sprintf("Confidence: %.1f%% (%s)\n",
@@ -822,7 +792,6 @@ func (mf *MoveFormatter) FormatDecision(decision *Decision) string {
 	return result
 }
 
-// FormatDecisionWithDetails formats a decision with extended alternative explanations
 func (mf *MoveFormatter) FormatDecisionWithDetails(decision *Decision, engine *DecisionEngine) string {
 	result := fmt.Sprintf("Top Move: %s\n", mf.FormatMove(decision.TopMove.Move))
 	result += fmt.Sprintf("Confidence: %.1f%% (%s)\n",

@@ -9,19 +9,16 @@ import (
 	"github.com/notnil/chess"
 )
 
-// PGNParser handles parsing of PGN files
 type PGNParser struct {
 	filepath string
 }
 
-// NewPGNParser creates a new PGN parser
 func NewPGNParser(filepath string) *PGNParser {
 	return &PGNParser{
 		filepath: filepath,
 	}
 }
 
-// ParsePGN parses a PGN file and returns a list of games
 func (p *PGNParser) ParsePGN() ([]*chess.Game, error) {
 	file, err := os.Open(p.filepath)
 	if err != nil {
@@ -32,7 +29,6 @@ func (p *PGNParser) ParsePGN() ([]*chess.Game, error) {
 	return p.ParsePGNReader(file)
 }
 
-// ParsePGNReader parses PGN from an io.Reader
 func (p *PGNParser) ParsePGNReader(reader io.Reader) ([]*chess.Game, error) {
 	var games []*chess.Game
 

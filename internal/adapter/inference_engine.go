@@ -12,8 +12,6 @@ import (
 	"github.com/thyrook/partner/internal/model"
 )
 
-// InferenceEngine provides high-level inference capabilities with adapter integration
-// It handles model loading, caching, batch processing, and performance monitoring
 type InferenceEngine struct {
 	model   *model.ChessCNN
 	adapter GameAdapter
@@ -31,7 +29,6 @@ type InferenceEngine struct {
 	cacheSize int
 }
 
-// InferenceConfig holds inference engine configuration
 type InferenceConfig struct {
 	// Model settings
 	ModelPath   string  `json:"model_path"`
@@ -47,7 +44,6 @@ type InferenceConfig struct {
 	WarmupIterations int  `json:"warmup_iterations"` // Warmup runs before timing
 }
 
-// InferenceStats tracks performance metrics
 type InferenceStats struct {
 	TotalInferences    int64         `json:"total_inferences"`
 	SuccessfulInfers   int64         `json:"successful_infers"`
@@ -62,15 +58,13 @@ type InferenceStats struct {
 	LastUpdateTime     time.Time     `json:"last_update_time"`
 }
 
-// CachedPrediction stores a cached inference result
 type CachedPrediction struct {
 	Result    interface{}
 	Timestamp time.Time
 	HitCount  int
 }
 
-// PredictionResult contains detailed prediction information
-type PredictionResult struct {
+type PredictionResult struct{
 	Action     interface{}            `json:"action"`
 	Confidence float64                `json:"confidence"`
 	TopK       []ActionConfidence     `json:"top_k"`
@@ -87,7 +81,6 @@ type ActionConfidence struct {
 	Index      int         `json:"index"`
 }
 
-// DefaultInferenceConfig returns sensible defaults
 func DefaultInferenceConfig() InferenceConfig {
 	return InferenceConfig{
 		ModelPath:        "data/models/chess_cnn.gob",
@@ -102,7 +95,6 @@ func DefaultInferenceConfig() InferenceConfig {
 	}
 }
 
-// NewInferenceEngine creates a new inference engine
 func NewInferenceEngine(adapter GameAdapter, config InferenceConfig) (*InferenceEngine, error) {
 	if adapter == nil {
 		return nil, fmt.Errorf("adapter cannot be nil")
@@ -122,7 +114,6 @@ func NewInferenceEngine(adapter GameAdapter, config InferenceConfig) (*Inference
 	return engine, nil
 }
 
-// LoadModel loads the neural network model from a checkpoint file
 func (ie *InferenceEngine) LoadModel(modelPath string) error {
 	ie.mu.Lock()
 	defer ie.mu.Unlock()
@@ -146,7 +137,6 @@ func (ie *InferenceEngine) LoadModel(modelPath string) error {
 	return nil
 }
 
-// Predict performs inference on a single state
 func (ie *InferenceEngine) Predict(ctx context.Context, state interface{}) (*PredictionResult, error) {
 	startTime := time.Now()
 
