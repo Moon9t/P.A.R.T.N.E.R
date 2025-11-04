@@ -1,8 +1,9 @@
 # P.A.R.T.N.E.R
 
 **P**redictive **A**daptive **R**eal-**T**ime **N**eural **E**valuation & **R**esponse
+<img width="1024" height="1024" alt="partner_logo" src="https://github.com/user-attachments/assets/1a5c4768-1fe0-4e15-a4cf-2ae7f061def7" />
 
-A production-grade AI system written entirely in Go that learns from chess gameplay through behavioral cloning and provides real-time move suggestions using convolutional neural networks.
+An AI system written entirely in Go that learns from chess gameplay through behavioral cloning and provides real-time move suggestions using convolutional neural networks.
 
 ## Quick Start
 
